@@ -1,8 +1,8 @@
 import { ChefHat, ClipboardList, LogIn, Plus, ReceiptText, RefreshCcw, Utensils } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 
-const defaultMesaToken = new URLSearchParams(window.location.search).get('mesa') || 'mesa-01';
+const defaultMesaToken = new URLSearchParams(window.location.search).get('mesa') || 'mwn_qr_a8F3kP7xQ2L9';
 
 export function App() {
   const [view, setView] = useState('cliente');
@@ -16,10 +16,7 @@ export function App() {
   const [cart, setCart] = useState([]);
   const [nomeCliente, setNomeCliente] = useState('');
   const [login, setLogin] = useState({ email: '', senha: '' });
-  const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem('comandax_user');
-    return raw ? JSON.parse(raw) : null;
-  });
+  const [user, setUser] = useState(readStoredUser);
   const [message, setMessage] = useState('');
 
   async function loadCliente() {
@@ -31,17 +28,21 @@ export function App() {
     ]);
 
     setMesa(mesaData);
-    setCardapio(cardapioData);
-    setComandas(comandasData);
-    setPedidos(pedidosData);
-    if (!selectedComanda && comandasData[0]) {
-      setSelectedComanda(comandasData[0].id);
+    const listaCardapio = asArray(cardapioData);
+    const listaComandas = asArray(comandasData);
+    const listaPedidos = asArray(pedidosData);
+
+    setCardapio(listaCardapio);
+    setComandas(listaComandas);
+    setPedidos(listaPedidos);
+    if (!selectedComanda && listaComandas[0]) {
+      setSelectedComanda(listaComandas[0].id);
     }
   }
 
   async function loadOperacao() {
     if (!user) return;
-    setOperacao(await api('/pedidos/operacao'));
+    setOperacao(asArray(await api('/pedidos/operacao')));
   }
 
   useEffect(() => {
@@ -298,4 +299,22 @@ function formatMoney(value) {
 
 function slug(value) {
   return value.toLowerCase().replaceAll(' ', '-');
+}
+
+function readStoredUser() {
+  const raw = localStorage.getItem('comandax_user');
+
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    localStorage.removeItem('comandax_user');
+    localStorage.removeItem('comandax_token');
+    return null;
+  }
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
 }

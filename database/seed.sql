@@ -1,6 +1,11 @@
 insert into mesas (numero, token_qr)
-values (1, 'mesa-01'), (2, 'mesa-02'), (3, 'mesa-03')
-on conflict (numero) do nothing;
+values
+  (1, 'mwn_qr_a8F3kP7xQ2L9'),
+  (2, 'mwn_qr_v6N9sT4bC1Z8'),
+  (3, 'mwn_qr_r2H7dM5qW9Y3')
+on conflict (numero) do update
+set token_qr = excluded.token_qr,
+    atualizado_em = now();
 
 insert into cardapios (nome, ativo)
 values ('Cardápio principal', true)

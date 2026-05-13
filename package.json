@@ -11,7 +11,8 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint .",
-    "create:user": "node scripts/create-user.js"
+    "create:user": "node scripts/create-user.js",
+    "generate:mesa-token": "node scripts/generate-table-token.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",

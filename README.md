@@ -46,7 +46,7 @@ API: `http://localhost:3001/api`
 
 ## Fluxos MVP implementados
 
-- Cliente acessa a mesa por token de QR Code, exemplo: `?mesa=mesa-01`.
+- Cliente acessa a mesa por token de QR Code, exemplo: `?mesa=mwn_qr_v6N9sT4bC1Z8`.
 - Cliente visualiza cardápio, cria comanda e envia pedido.
 - Cliente acompanha status por atualização manual e recarregamento/polling da aplicação.
 - Equipe acessa a tela de operação com login.
