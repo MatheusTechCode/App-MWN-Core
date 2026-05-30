@@ -8,6 +8,10 @@ const { Pool } = pg;
 export const dbClient = env.databaseClient;
 
 function createPostgresPool() {
+  if (!env.databaseUrl) {
+    throw new Error('DATABASE_URL não configurado. Use DATABASE_CLIENT=sqlite para rodar a demo sem PostgreSQL.');
+  }
+
   return new Pool({
     connectionString: env.databaseUrl,
   });

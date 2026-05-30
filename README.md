@@ -161,4 +161,18 @@ Para rodar localmente nesse modo:
 npm run dev:sqlite
 ```
 
+Para produção/demo em serviço gratuito, use o comando de inicialização:
+
+```bash
+npm run start:sqlite
+```
+
+Ou configure a variável de ambiente abaixo e use `npm start`:
+
+```env
+DATABASE_CLIENT=sqlite
+```
+
+Se `DATABASE_URL` não existir, o sistema também assume SQLite automaticamente.
+
 Observação: `node:sqlite` ainda emite aviso experimental em algumas versões do Node. Para demo é suficiente; para SaaS real, mantenha PostgreSQL.
