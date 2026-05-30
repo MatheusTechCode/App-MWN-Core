@@ -24,12 +24,7 @@ export async function listPedidosByMesaToken(mesaToken) {
   const result = await query(
     `select p.id, p.status, p.observacao, p.criado_por, p.criado_em, p.atualizado_em,
        c.nome_cliente, m.numero as mesa_numero,
-       coalesce(json_agg(json_build_object(
-         'itemCardapioId', ic.id,
-         'nome', ic.nome,
-         'quantidade', ip.quantidade,
-         'precoUnitario', ip.preco_unitario
-       )) filter (where ip.id is not null), '[]') as itens
+       ic.id as item_cardapio_id, ic.nome, ip.quantidade, ip.preco_unitario
      from pedidos p
      join comandas c on c.id = p.comanda_id
      join mesas m on m.id = c.mesa_id
@@ -37,35 +32,28 @@ export async function listPedidosByMesaToken(mesaToken) {
      left join itens_cardapio ic on ic.id = ip.item_cardapio_id
      where m.token_qr = $1
        and c.status = 'aberta'
-     group by p.id, c.nome_cliente, m.numero
-     order by p.criado_em desc`,
+     order by p.criado_em desc, p.id, ip.id`,
     [mesaToken],
   );
 
-  return result.rows;
+  return groupPedidos(result.rows);
 }
 
 export async function listPedidosOperacao() {
   const result = await query(
     `select p.id, p.status, p.observacao, p.criado_por, p.criado_em, c.nome_cliente,
        m.numero as mesa_numero,
-       coalesce(json_agg(json_build_object(
-         'itemCardapioId', ic.id,
-         'nome', ic.nome,
-         'quantidade', ip.quantidade,
-         'precoUnitario', ip.preco_unitario
-       )) filter (where ip.id is not null), '[]') as itens
+       ic.id as item_cardapio_id, ic.nome, ip.quantidade, ip.preco_unitario
      from pedidos p
      join comandas c on c.id = p.comanda_id
      join mesas m on m.id = c.mesa_id
      left join itens_pedido ip on ip.pedido_id = p.id
      left join itens_cardapio ic on ic.id = ip.item_cardapio_id
      where p.status in ('Na fila', 'Em preparo', 'Pronto')
-     group by p.id, c.nome_cliente, m.numero
-     order by p.criado_em`,
+     order by p.criado_em, p.id, ip.id`,
   );
 
-  return result.rows;
+  return groupPedidos(result.rows);
 }
 
 export async function createPedido({ comandaId, itens, observacao, criadoPor }) {
@@ -189,10 +177,10 @@ export async function updatePedidoItens(id, itens, alteradoPor) {
 
     await client.query(
       `insert into historico_atendimento (comanda_id, acao, detalhes)
-       select comanda_id, 'PEDIDO_EDITADO', jsonb_build_object('pedidoId', id, 'alteradoPor', $2::text)
+       select comanda_id, 'PEDIDO_EDITADO', $2
        from pedidos
        where id = $1`,
-      [id, alteradoPor],
+      [id, JSON.stringify({ pedidoId: id, alteradoPor })],
     );
 
     await client.query('commit');
@@ -213,15 +201,11 @@ export async function deletePedido(id, alteradoPor) {
 
     await client.query(
       `insert into historico_atendimento (mesa_id, comanda_id, acao, detalhes)
-       select c.mesa_id, p.comanda_id, 'PEDIDO_EXCLUIDO', jsonb_build_object(
-         'pedidoId', p.id,
-         'status', p.status,
-         'alteradoPor', $2::text
-       )
+       select c.mesa_id, p.comanda_id, 'PEDIDO_EXCLUIDO', $2
        from pedidos p
        join comandas c on c.id = p.comanda_id
        where p.id = $1`,
-      [id, alteradoPor],
+      [id, JSON.stringify({ pedidoId: id, alteradoPor })],
     );
 
     const result = await client.query(
@@ -239,4 +223,35 @@ export async function deletePedido(id, alteradoPor) {
   } finally {
     client.release();
   }
+}
+
+function groupPedidos(rows) {
+  const pedidos = new Map();
+
+  for (const row of rows) {
+    if (!pedidos.has(row.id)) {
+      pedidos.set(row.id, {
+        id: row.id,
+        status: row.status,
+        observacao: row.observacao,
+        criado_por: row.criado_por,
+        criado_em: row.criado_em,
+        atualizado_em: row.atualizado_em,
+        nome_cliente: row.nome_cliente,
+        mesa_numero: row.mesa_numero,
+        itens: [],
+      });
+    }
+
+    if (row.item_cardapio_id) {
+      pedidos.get(row.id).itens.push({
+        itemCardapioId: row.item_cardapio_id,
+        nome: row.nome,
+        quantidade: row.quantidade,
+        precoUnitario: row.preco_unitario,
+      });
+    }
+  }
+
+  return Array.from(pedidos.values());
 }

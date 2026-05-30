@@ -7,6 +7,7 @@ MVP do SaaS de cardápio digital da MWN CORE para restaurantes e similares.
 - Backend: Node.js + Express
 - Frontend: React + Vite + PWA
 - Banco: PostgreSQL
+- Banco demo opcional: SQLite nativo do Node.js
 - Arquitetura: monolito modular
 - Tempo real no MVP: polling
 
@@ -125,3 +126,39 @@ scripts/
 - 3 - mwn_qr_r2H7dM5qW9Y3
 
 Criar qr-code com o endereço de ip e com o codigo da mesa
+
+## Demo gratuita com SQLite
+
+Para serviços gratuitos que não permitem instalar PostgreSQL, o projeto pode rodar em modo SQLite usando o SQLite nativo do Node.js.
+
+Configure o `.env` da demo:
+
+```env
+DATABASE_CLIENT=sqlite
+SQLITE_PATH=database/demo.sqlite
+JWT_SECRET=troque-este-segredo
+ADMIN_RECOVERY_CODE=um-codigo-forte-para-recuperacao
+```
+
+O schema e os dados iniciais são aplicados automaticamente a partir de:
+
+```txt
+database/sqlite-schema.sql
+database/sqlite-seed.sql
+```
+
+Crie os usuários normalmente, já usando o modo SQLite:
+
+```bash
+DATABASE_CLIENT=sqlite npm run create:user -- "Admin" admin@comandax.com admin123 admin
+DATABASE_CLIENT=sqlite npm run create:user -- "Cozinha" cozinha@comandax.com cozinha123 cozinha
+DATABASE_CLIENT=sqlite npm run create:user -- "Garçom" garcom@comandax.com garcom123 garcom
+```
+
+Para rodar localmente nesse modo:
+
+```bash
+npm run dev:sqlite
+```
+
+Observação: `node:sqlite` ainda emite aviso experimental em algumas versões do Node. Para demo é suficiente; para SaaS real, mantenha PostgreSQL.

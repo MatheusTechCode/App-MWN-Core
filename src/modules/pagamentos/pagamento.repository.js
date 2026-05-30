@@ -11,8 +11,7 @@ export async function registrarPagamento({ comandaId, formaPagamento, usuario })
       `select c.id, c.mesa_id, c.nome_cliente, c.status, m.numero as mesa_numero
        from comandas c
        join mesas m on m.id = c.mesa_id
-       where c.id = $1
-       for update of c`,
+       where c.id = $1`,
       [comandaId],
     );
     const comanda = comandaResult.rows[0];
@@ -53,13 +52,17 @@ export async function registrarPagamento({ comandaId, formaPagamento, usuario })
 
     await client.query(
       `insert into historico_atendimento (mesa_id, comanda_id, acao, detalhes)
-       values ($1, $2, 'PAGAMENTO_REGISTRADO', jsonb_build_object(
-         'valor', $3::numeric,
-         'formaPagamento', $4::text,
-         'usuarioId', $5::bigint,
-         'perfil', $6::text
-       ))`,
-      [comanda.mesa_id, comanda.id, total, formaPagamento, usuario.id, usuario.perfil],
+       values ($1, $2, 'PAGAMENTO_REGISTRADO', $3)`,
+      [
+        comanda.mesa_id,
+        comanda.id,
+        JSON.stringify({
+          valor: total,
+          formaPagamento,
+          usuarioId: usuario.id,
+          perfil: usuario.perfil,
+        }),
+      ],
     );
 
     await client.query('commit');

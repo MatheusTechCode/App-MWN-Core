@@ -66,7 +66,7 @@ export async function transferComanda(id, mesaId) {
   try {
     await client.query('begin');
 
-    const atualResult = await client.query('select id, mesa_id from comandas where id = $1 for update', [id]);
+    const atualResult = await client.query('select id, mesa_id from comandas where id = $1', [id]);
     const atual = atualResult.rows[0];
 
     const result = await client.query(
@@ -78,11 +78,15 @@ export async function transferComanda(id, mesaId) {
 
     await client.query(
       `insert into historico_atendimento (mesa_id, comanda_id, acao, detalhes)
-       values ($1, $2, 'COMANDA_TRANSFERIDA', jsonb_build_object(
-         'mesaOrigemId', $3::bigint,
-         'mesaDestinoId', $1::bigint
-       ))`,
-      [mesaId, id, atual?.mesa_id || null],
+       values ($1, $2, 'COMANDA_TRANSFERIDA', $3)`,
+      [
+        mesaId,
+        id,
+        JSON.stringify({
+          mesaOrigemId: atual?.mesa_id || null,
+          mesaDestinoId: mesaId,
+        }),
+      ],
     );
 
     await client.query('commit');

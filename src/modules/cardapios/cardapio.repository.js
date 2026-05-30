@@ -2,12 +2,13 @@ import { query } from '../../database/pool.js';
 
 export async function listItensAtivos() {
   const result = await query(
-    `select distinct on (i.categoria, i.nome) i.id, i.nome, i.descricao, i.preco, i.categoria, i.disponivel
+    `select i.id, i.nome, i.descricao, i.preco, i.categoria, i.disponivel
      from itens_cardapio i
      join cardapio_itens ci on ci.item_cardapio_id = i.id
      join cardapios c on c.id = ci.cardapio_id
      where i.disponivel = true and c.ativo = true
-     order by i.categoria, i.nome, i.id`,
+     group by i.id, i.nome, i.descricao, i.preco, i.categoria, i.disponivel
+     order by i.categoria, i.nome`,
   );
 
   return result.rows;
@@ -15,15 +16,31 @@ export async function listItensAtivos() {
 
 export async function listCardapios() {
   const result = await query(
-    `select c.id, c.nome, c.ativo, c.criado_em,
-       coalesce(array_agg(ci.item_cardapio_id) filter (where ci.item_cardapio_id is not null), '{}') as item_ids
+    `select c.id, c.nome, c.ativo, c.criado_em, ci.item_cardapio_id
      from cardapios c
      left join cardapio_itens ci on ci.cardapio_id = c.id
-     group by c.id
      order by c.ativo desc, c.nome`,
   );
 
-  return result.rows;
+  const cardapios = new Map();
+
+  for (const row of result.rows) {
+    if (!cardapios.has(row.id)) {
+      cardapios.set(row.id, {
+        id: row.id,
+        nome: row.nome,
+        ativo: Boolean(row.ativo),
+        criado_em: row.criado_em,
+        item_ids: [],
+      });
+    }
+
+    if (row.item_cardapio_id) {
+      cardapios.get(row.id).item_ids.push(row.item_cardapio_id);
+    }
+  }
+
+  return Array.from(cardapios.values());
 }
 
 export async function createCardapio({ nome, ativo }) {
