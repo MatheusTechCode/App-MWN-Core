@@ -19,23 +19,35 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.resolve(__dirname, '..', 'dist');
 
 app.use(helmet());
-app.use(
-  cors({
+
+function apiCors(req, res, next) {
+  return cors({
     origin(origin, callback) {
       const allowedOrigins = new Set([env.clientUrl, ...env.corsOrigins]);
       const localhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
       const privateNetwork =
         /^https?:\/\/(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
+      const sameHost = origin && getOriginHost(origin) === req.get('host');
 
-      if (!origin || allowedOrigins.has(origin) || localhost.test(origin) || privateNetwork.test(origin)) {
+      if (!origin || sameHost || allowedOrigins.has(origin) || localhost.test(origin) || privateNetwork.test(origin)) {
         callback(null, true);
         return;
       }
 
       callback(new Error('Origem não permitida pelo CORS.'));
     },
-  }),
-);
+  })(req, res, next);
+}
+
+function getOriginHost(origin) {
+  try {
+    return new URL(origin).host;
+  } catch {
+    return null;
+  }
+}
+
+app.use('/api', apiCors);
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
