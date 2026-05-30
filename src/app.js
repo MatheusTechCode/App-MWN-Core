@@ -1,5 +1,8 @@
 import cors from 'cors';
 import express from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -12,6 +15,8 @@ import { pedidoRoutes } from './modules/pedidos/pedido.routes.js';
 import { usuarioRoutes } from './modules/usuarios/usuario.routes.js';
 
 export const app = express();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const distPath = path.resolve(__dirname, '..', 'dist');
 
 app.use(helmet());
 app.use(
@@ -43,5 +48,18 @@ app.use('/api/comandas', comandaRoutes);
 app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/pagamentos', pagamentoRoutes);
 app.use('/api/usuarios', usuarioRoutes);
+
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      next();
+      return;
+    }
+
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 app.use(errorHandler);

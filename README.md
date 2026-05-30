@@ -167,6 +167,15 @@ Para produção/demo em serviço gratuito, use o comando de inicialização:
 npm run start:sqlite
 ```
 
+No Render como Web Service, configure:
+
+```txt
+Build Command: npm install && npm run build
+Start Command: npm run start:sqlite
+```
+
+O Express servirá a API em `/api` e o frontend React nas demais rotas, como `/admin` e `/mwn_qr_a8F3kP7xQ2L9`.
+
 Ou configure a variável de ambiente abaixo e use `npm start`:
 
 ```env
