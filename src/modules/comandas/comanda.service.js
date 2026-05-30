@@ -4,10 +4,15 @@ import { obterMesaPorToken } from '../mesas/mesa.service.js';
 import {
   createComanda,
   findComandaById,
+  listComandasAbertas,
   listComandasByMesa,
   renameComanda,
   transferComanda,
 } from './comanda.repository.js';
+
+export async function listarComandasAbertas() {
+  return listComandasAbertas();
+}
 
 export async function listarComandasDaMesa(mesaToken) {
   const mesa = await obterMesaPorToken(mesaToken);

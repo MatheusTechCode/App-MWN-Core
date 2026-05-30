@@ -146,6 +146,11 @@ select {
   font: inherit;
 }
 
+input[type="checkbox"] {
+  min-height: auto;
+  width: auto;
+}
+
 button {
   align-items: center;
   background: var(--button-primary-bg);
@@ -171,6 +176,13 @@ button:hover {
 
 button:active {
   transform: translateY(0);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+  opacity: 0.55;
+  transform: none;
 }
 
 button.ghost {
@@ -287,6 +299,67 @@ small {
   padding: var(--spacing-5);
 }
 
+.client-page,
+.client-content {
+  width: 100%;
+}
+
+.client-content {
+  align-items: start;
+  display: grid;
+  gap: var(--spacing-5);
+  grid-template-columns: minmax(0, 1fr) 320px;
+  padding: var(--spacing-5);
+}
+
+.client-content.narrow {
+  margin: 0 auto;
+  max-width: 620px;
+}
+
+.cart-panel {
+  align-self: start;
+}
+
+.empty-route {
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: center;
+  padding: var(--spacing-7) var(--spacing-5);
+}
+
+.modal-backdrop {
+  align-items: center;
+  background: rgba(2, 8, 23, 0.78);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: var(--spacing-4);
+  position: fixed;
+  z-index: var(--z-modal);
+}
+
+.modal {
+  background: var(--gradient-card);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  gap: var(--spacing-4);
+  max-width: 420px;
+  padding: var(--spacing-5);
+  width: 100%;
+}
+
+.modal h2,
+.modal p {
+  margin: 0;
+}
+
+.modal p {
+  color: var(--color-text-secondary);
+}
+
 .panel,
 .login-card,
 .lane {
@@ -317,6 +390,20 @@ small {
   display: flex;
   justify-content: space-between;
   padding: var(--spacing-4);
+}
+
+.summary-box {
+  background: rgba(0, 209, 255, 0.1);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
+}
+
+.summary-box strong {
+  color: var(--color-accent);
+  font-size: var(--font-size-lg);
 }
 
 .mesa-box strong {
@@ -458,13 +545,115 @@ small {
   grid-template-columns: repeat(3, minmax(220px, 1fr));
 }
 
+.operation-grid {
+  align-items: start;
+  display: grid;
+  gap: var(--spacing-5);
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+.admin-panels {
+  display: grid;
+  gap: var(--spacing-5);
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+}
+
+.admin-panel {
+  background: var(--gradient-card);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  display: grid;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4);
+}
+
+.admin-panel.wide {
+  grid-column: 1 / -1;
+}
+
+.items-admin-grid {
+  display: grid;
+  gap: var(--spacing-3);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.accounts {
+  position: static;
+}
+
+.password-reset {
+  display: grid;
+  gap: var(--spacing-3);
+}
+
+.staff-manager {
+  display: grid;
+  gap: var(--spacing-3);
+}
+
+.staff-card {
+  background: rgba(15, 23, 42, 0.82);
+  border: var(--card-border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+}
+
+.staff-card > div:first-child {
+  display: grid;
+  gap: var(--spacing-2);
+}
+
+.staff-actions {
+  display: grid;
+  gap: var(--spacing-2);
+  grid-template-columns: 1fr 1fr;
+}
+
+.check-row {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.link-grid {
+  display: grid;
+  gap: var(--spacing-2);
+}
+
+.waiter-order {
+  border-bottom: 1px solid var(--color-border-soft);
+  border-top: 1px solid var(--color-border-soft);
+  display: grid;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) 0;
+}
+
+.order-edit {
+  display: grid;
+  gap: var(--spacing-3);
+}
+
+.edit-row {
+  display: grid;
+  gap: var(--spacing-2);
+  grid-template-columns: minmax(0, 1fr) 88px auto;
+}
+
 @media (max-width: 980px) {
   .layout,
+  .client-content,
+  .admin-panels,
+  .operation-grid,
   .kanban {
     grid-template-columns: 1fr;
   }
 
-  .panel {
+  .panel,
+  .accounts {
     position: static;
   }
 }
@@ -481,7 +670,21 @@ small {
   }
 
   .layout,
+  .client-content,
   .operation {
     padding: var(--spacing-4);
+  }
+
+  .topbar nav {
+    grid-template-columns: 1fr;
+  }
+
+  .empty-route {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .edit-row {
+    grid-template-columns: 1fr;
   }
 }

@@ -75,9 +75,13 @@ create table if not exists pagamentos (
   id bigserial primary key,
   comanda_id bigint not null references comandas(id),
   valor numeric(10, 2) not null check (valor >= 0),
+  forma_pagamento varchar(40) not null default 'dinheiro',
   status varchar(30) not null default 'pendente',
   criado_em timestamptz not null default now()
 );
+
+alter table pagamentos
+  add column if not exists forma_pagamento varchar(40) not null default 'dinheiro';
 
 create table if not exists historico_status_pedido (
   id bigserial primary key,

@@ -11,11 +11,27 @@ export function validateCreatePedido(body) {
     throw new AppError('Token da mesa é obrigatório.');
   }
 
-  if (!Array.isArray(body.itens) || body.itens.length === 0) {
+  validateItensPedido(body.itens);
+}
+
+export function validateCreatePedidoOperacao(body) {
+  if (!body.comandaId) {
+    throw new AppError('Comanda é obrigatória.');
+  }
+
+  validateItensPedido(body.itens);
+}
+
+export function validateUpdatePedido(body) {
+  validateItensPedido(body.itens);
+}
+
+function validateItensPedido(itens) {
+  if (!Array.isArray(itens) || itens.length === 0) {
     throw new AppError('Pedido deve possuir ao menos um item.');
   }
 
-  body.itens.forEach((item) => {
+  itens.forEach((item) => {
     if (!item.itemCardapioId || !Number.isInteger(Number(item.quantidade)) || Number(item.quantidade) < 1) {
       throw new AppError('Itens do pedido devem informar item do cardápio e quantidade válida.');
     }

@@ -1,6 +1,7 @@
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   criarComanda,
+  listarComandasAbertas,
   listarComandasDaMesa,
   renomearComanda,
   transferirComanda,
@@ -12,6 +13,10 @@ import {
 } from './comanda.validation.js';
 
 export const comandaController = {
+  listOpen: asyncHandler(async (req, res) => {
+    res.json(await listarComandasAbertas());
+  }),
+
   listByMesa: asyncHandler(async (req, res) => {
     res.json(await listarComandasDaMesa(req.params.mesaToken));
   }),

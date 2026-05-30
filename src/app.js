@@ -7,7 +7,9 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { cardapioRoutes } from './modules/cardapios/cardapio.routes.js';
 import { comandaRoutes } from './modules/comandas/comanda.routes.js';
 import { mesaRoutes } from './modules/mesas/mesa.routes.js';
+import { pagamentoRoutes } from './modules/pagamentos/pagamento.routes.js';
 import { pedidoRoutes } from './modules/pedidos/pedido.routes.js';
+import { usuarioRoutes } from './modules/usuarios/usuario.routes.js';
 
 export const app = express();
 
@@ -39,5 +41,7 @@ app.use('/api/mesas', mesaRoutes);
 app.use('/api/cardapios', cardapioRoutes);
 app.use('/api/comandas', comandaRoutes);
 app.use('/api/pedidos', pedidoRoutes);
+app.use('/api/pagamentos', pagamentoRoutes);
+app.use('/api/usuarios', usuarioRoutes);
 
 app.use(errorHandler);

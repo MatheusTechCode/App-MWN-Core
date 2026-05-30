@@ -41,18 +41,54 @@ npm run create:user -- "Garçom" garcom@comandax.com garcom123 garcom
 npm run dev
 ```
 
-Frontend: `http://localhost:5173`
-API: `http://localhost:3001/api`
+Frontend cliente local: `http://localhost:5173/mwn_qr_a8F3kP7xQ2L9`
+Frontend operação local: `http://localhost:5173/admin`
+API local: `http://localhost:3001/api`
+
+Na tela de operação, o campo `Login` aceita o nome cadastrado ou o e-mail do usuário.
+
+Para permitir recuperação de senha do gestor, configure no `.env`:
+
+```env
+ADMIN_RECOVERY_CODE=um-codigo-forte-para-recuperacao
+```
+
+Esse código é solicitado na opção `Recuperar senha do gestor` da tela de operação.
+
+Para testar em celulares na mesma rede Wi-Fi, use o IP da máquina que está rodando o projeto:
+
+```txt
+http://SEU_IP_LOCAL:5173/mwn_qr_a8F3kP7xQ2L9
+http://SEU_IP_LOCAL:5173/admin
+http://SEU_IP_LOCAL:3001/api/health
+```
+
+Exemplo: se o Vite mostrar `Network: http://192.168.1.102:5173/`, use `http://192.168.1.102:5173/admin` no celular.
 
 ## Fluxos MVP implementados
 
-- Cliente acessa a mesa por token de QR Code, exemplo: `?mesa=mwn_qr_v6N9sT4bC1Z8`.
+- Cliente acessa a mesa por token de QR Code na rota, exemplo: `/mwn_qr_v6N9sT4bC1Z8`.
+- Cliente alterna entre telas de cardápio, comanda e pedidos pelo topo.
 - Cliente visualiza cardápio, cria comanda e envia pedido.
-- Cliente acompanha status por atualização manual e recarregamento/polling da aplicação.
-- Equipe acessa a tela de operação com login.
+- Cliente acompanha status e total parcial da comanda por atualização manual e polling da aplicação.
+- Equipe acessa a tela de operação por `/admin`.
 - Cozinha move pedidos de `Na fila` para `Em preparo` e de `Em preparo` para `Pronto`.
+- Garçom ou admin pode abrir comandas para mesas pela tela de operação.
+- Garçom ou admin pode lançar novos pedidos nas comandas abertas dos clientes.
+- Garçom ou admin pode transferir comandas abertas entre mesas.
+- Cliente pode editar ou excluir itens de um pedido enquanto ele estiver `Na fila`.
+- Garçom pode editar ou excluir pedidos enquanto estiverem `Na fila`.
+- Admin pode editar ou excluir pedidos ainda não entregues.
 - Garçom move pedidos de `Pronto` para `Entregue`.
+- Garçom ou admin visualiza comandas abertas e registra pagamento, encerrando a comanda.
+- Admin pode redefinir senha de usuários operacionais pela tela de operação.
+- Admin pode recuperar a própria senha usando o código de recuperação configurado no `.env`.
+- Admin pode gerenciar garçons: criar, editar e excluir/desativar.
+- Admin pode gerenciar mesas: visualizar, criar, editar e excluir/inativar.
+- Admin pode gerenciar cardápios e itens: criar, visualizar, editar, ativar/inativar, excluir e vincular itens a cardápios.
+- Garçom e cozinha podem visualizar cardápios e ativar/inativar cardápios conforme a operação.
 - Histórico de status é registrado em `historico_status_pedido`.
+- Histórico de pagamento é registrado em `historico_atendimento`.
 
 ## Estrutura
 
@@ -67,6 +103,7 @@ src/
     comandas/
     pedidos/
     cardapios/
+    pagamentos/
   utils/
 client/
   src/
@@ -80,3 +117,11 @@ scripts/
 - O cliente não precisa autenticar no MVP; ele é limitado pelo token da mesa.
 - Usuários administrativos usam JWT e senha com hash bcrypt.
 - Polling foi mantido no lugar de WebSocket para respeitar o escopo do MVP.
+
+## Mesas criadas
+
+- 1 - mwn_qr_a8F3kP7xQ2L9
+- 2 - mwn_qr_v6N9sT4bC1Z8
+- 3 - mwn_qr_r2H7dM5qW9Y3
+
+Criar qr-code com o endereço de ip e com o codigo da mesa

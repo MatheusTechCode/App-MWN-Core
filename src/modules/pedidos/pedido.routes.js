@@ -12,6 +12,26 @@ pedidoRoutes.get(
   pedidoController.listOperation,
 );
 pedidoRoutes.post('/', pedidoController.create);
+pedidoRoutes.post(
+  '/operacao',
+  requireAuth,
+  requireRole('admin', 'garcom'),
+  pedidoController.createOperation,
+);
+pedidoRoutes.patch(
+  '/operacao/:id',
+  requireAuth,
+  requireRole('admin', 'garcom'),
+  pedidoController.updateOperation,
+);
+pedidoRoutes.delete(
+  '/operacao/:id',
+  requireAuth,
+  requireRole('admin', 'garcom'),
+  pedidoController.deleteOperation,
+);
+pedidoRoutes.patch('/:id', pedidoController.update);
+pedidoRoutes.delete('/:id', pedidoController.delete);
 pedidoRoutes.patch(
   '/:id/status',
   requireAuth,

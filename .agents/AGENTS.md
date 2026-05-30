@@ -157,6 +157,11 @@ src/
   config/
   modules/
     auth/
+      auth.controller.js
+      auth.repository.js
+      auth.routes.js
+      auth.service.js
+      auth.validation.js
     usuarios/
     mesas/
     comandas/

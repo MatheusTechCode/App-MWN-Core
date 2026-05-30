@@ -1,23 +1,56 @@
-import { ChefHat, ClipboardList, LogIn, Plus, ReceiptText, RefreshCcw, Utensils } from 'lucide-react';
+import { ChefHat, ClipboardList, CreditCard, LogIn, Plus, ReceiptText, RefreshCcw, Utensils } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 
-const defaultMesaToken = new URLSearchParams(window.location.search).get('mesa') || 'mwn_qr_a8F3kP7xQ2L9';
+const fallbackMesaToken = new URLSearchParams(window.location.search).get('mesa') || 'mwn_qr_a8F3kP7xQ2L9';
+const initialRoute = getRouteFromPath();
 
 export function App() {
-  const [view, setView] = useState('cliente');
-  const [mesaToken, setMesaToken] = useState(defaultMesaToken);
+  const [route, setRoute] = useState(initialRoute);
+  const [clientScreen, setClientScreen] = useState('comanda');
+  const [mesaToken] = useState(initialRoute.mesaToken || fallbackMesaToken);
   const [mesa, setMesa] = useState(null);
   const [cardapio, setCardapio] = useState([]);
   const [comandas, setComandas] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [operacao, setOperacao] = useState([]);
+  const [comandasOperacao, setComandasOperacao] = useState([]);
+  const [mesasOperacao, setMesasOperacao] = useState([]);
+  const [garcons, setGarcons] = useState([]);
+  const [cardapiosAdmin, setCardapiosAdmin] = useState([]);
+  const [itensAdmin, setItensAdmin] = useState([]);
   const [selectedComanda, setSelectedComanda] = useState(null);
   const [cart, setCart] = useState([]);
   const [nomeCliente, setNomeCliente] = useState('');
-  const [login, setLogin] = useState({ email: '', senha: '' });
+  const [novaComandaOperacao, setNovaComandaOperacao] = useState({ mesaToken: '', nomeCliente: '' });
+  const [login, setLogin] = useState({ login: '', senha: '' });
+  const [recoverAdmin, setRecoverAdmin] = useState({ login: '', codigoRecuperacao: '', novaSenha: '' });
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [passwordReset, setPasswordReset] = useState({ email: '', novaSenha: '' });
+  const [garcomForm, setGarcomForm] = useState({ id: null, nome: '', email: '', senha: '' });
+  const [mesaForm, setMesaForm] = useState({ id: null, numero: '', status: 'ativa' });
+  const [cardapioForm, setCardapioForm] = useState({ id: null, nome: '', ativo: true });
+  const [itemForm, setItemForm] = useState({
+    id: null,
+    nome: '',
+    descricao: '',
+    preco: '',
+    categoria: '',
+    disponivel: true,
+    cardapioId: '',
+  });
   const [user, setUser] = useState(readStoredUser);
   const [message, setMessage] = useState('');
+  const [orderConfirmation, setOrderConfirmation] = useState(null);
+  const [editingOrder, setEditingOrder] = useState(null);
+
+  const isAdminRoute = route.type === 'admin';
+  const isClientRoute = route.type === 'cliente';
+
+  function navigate(path) {
+    window.history.pushState({}, '', path);
+    setRoute(getRouteFromPath());
+  }
 
   async function loadCliente() {
     const [mesaData, cardapioData, comandasData, pedidosData] = await Promise.all([
@@ -42,30 +75,73 @@ export function App() {
 
   async function loadOperacao() {
     if (!user) return;
-    setOperacao(asArray(await api('/pedidos/operacao')));
+    const podeGerenciarComandas = ['admin', 'garcom'].includes(user.perfil);
+    const podeVisualizarCardapio = ['admin', 'garcom', 'cozinha'].includes(user.perfil);
+    const [
+      pedidosOperacao,
+      comandasAbertas,
+      cardapioOperacao,
+      mesasOperacaoData,
+      garconsData,
+      cardapiosAdminData,
+      itensAdminData,
+    ] = await Promise.all([
+      api('/pedidos/operacao'),
+      podeGerenciarComandas ? api('/comandas') : Promise.resolve([]),
+      podeVisualizarCardapio ? api('/cardapios') : Promise.resolve([]),
+      podeGerenciarComandas ? api('/mesas') : Promise.resolve([]),
+      user.perfil === 'admin' ? api('/usuarios/garcons') : Promise.resolve([]),
+      podeVisualizarCardapio ? api('/cardapios/admin') : Promise.resolve([]),
+      podeVisualizarCardapio ? api('/cardapios/itens') : Promise.resolve([]),
+    ]);
+    setOperacao(asArray(pedidosOperacao));
+    setComandasOperacao(asArray(comandasAbertas));
+    setCardapio(asArray(cardapioOperacao));
+    const mesas = asArray(mesasOperacaoData);
+    setMesasOperacao(mesas);
+    setGarcons(asArray(garconsData));
+    const adminCardapios = asArray(cardapiosAdminData);
+    setCardapiosAdmin(adminCardapios);
+    setItensAdmin(asArray(itensAdminData));
+    setItemForm((current) => ({
+      ...current,
+      cardapioId: current.cardapioId || adminCardapios[0]?.id || '',
+    }));
+    setNovaComandaOperacao((current) => ({
+      ...current,
+      mesaToken: current.mesaToken || mesas[0]?.token_qr || '',
+    }));
   }
 
   useEffect(() => {
+    if (!isClientRoute) return;
     loadCliente().catch((error) => setMessage(error.message));
-  }, [mesaToken]);
+  }, [isClientRoute, mesaToken]);
 
   useEffect(() => {
-    if (view !== 'cliente') return undefined;
+    if (!isClientRoute) return undefined;
     const timer = setInterval(() => loadCliente().catch(() => {}), 5000);
     return () => clearInterval(timer);
-  }, [view, mesaToken]);
+  }, [isClientRoute, mesaToken]);
 
   useEffect(() => {
-    if (view !== 'operacao') return undefined;
+    if (!isAdminRoute) return undefined;
     loadOperacao().catch((error) => setMessage(error.message));
     const timer = setInterval(() => loadOperacao().catch(() => {}), 5000);
     return () => clearInterval(timer);
-  }, [view, user]);
+  }, [isAdminRoute, user]);
+
+  useEffect(() => {
+    const handlePopState = () => setRoute(getRouteFromPath());
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + Number(item.preco) * item.quantidade, 0),
     [cart],
   );
+  const comandaAtual = comandas.find((comanda) => Number(comanda.id) === Number(selectedComanda));
 
   function addToCart(item) {
     setCart((current) => {
@@ -91,6 +167,7 @@ export function App() {
     setSelectedComanda(nova.id);
     setMessage('Comanda criada com sucesso.');
     await loadCliente();
+    setClientScreen('cardapio');
   }
 
   async function createPedido() {
@@ -105,6 +182,10 @@ export function App() {
     });
     setCart([]);
     setMessage('Pedido enviado para a cozinha.');
+    setOrderConfirmation({
+      title: 'Pedido enviado',
+      text: 'Seu pedido foi enviado para a cozinha. Acompanhe o andamento na tela de pedidos.',
+    });
     await loadCliente();
   }
 
@@ -117,9 +198,20 @@ export function App() {
     localStorage.setItem('comandax_token', result.token);
     localStorage.setItem('comandax_user', JSON.stringify(result.usuario));
     setUser(result.usuario);
-    setLogin({ email: '', senha: '' });
+    setLogin({ login: '', senha: '' });
     setMessage(`Bem-vindo, ${result.usuario.nome}.`);
     await loadOperacao();
+  }
+
+  async function submitAdminRecovery(event) {
+    event.preventDefault();
+    await api('/auth/recover-admin-password', {
+      method: 'PATCH',
+      body: JSON.stringify(recoverAdmin),
+    });
+    setRecoverAdmin({ login: '', codigoRecuperacao: '', novaSenha: '' });
+    setShowRecovery(false);
+    setMessage('Senha do gestor redefinida. Entre com a nova senha.');
   }
 
   async function changeStatus(pedido, status) {
@@ -130,153 +222,1052 @@ export function App() {
     await loadOperacao();
   }
 
+  async function registrarPagamento(comanda, formaPagamento) {
+    await api('/pagamentos', {
+      method: 'POST',
+      body: JSON.stringify({ comandaId: comanda.id, formaPagamento }),
+    });
+    setMessage(`Pagamento da comanda ${comanda.nome_cliente} confirmado.`);
+    await loadOperacao();
+  }
+
+  async function transferirComanda(comanda, mesaId) {
+    await api(`/comandas/${comanda.id}/transferir`, {
+      method: 'PATCH',
+      body: JSON.stringify({ mesaId }),
+    });
+    setMessage(`Comanda ${comanda.nome_cliente} transferida.`);
+    await loadOperacao();
+  }
+
+  async function resetPassword(event) {
+    event.preventDefault();
+    await api('/auth/reset-password', {
+      method: 'PATCH',
+      body: JSON.stringify(passwordReset),
+    });
+    setPasswordReset({ email: '', novaSenha: '' });
+    setMessage('Senha redefinida com sucesso.');
+  }
+
+  async function createPedidoOperacao({ comandaId, itemCardapioId, quantidade }) {
+    await api('/pedidos/operacao', {
+      method: 'POST',
+      body: JSON.stringify({
+        comandaId,
+        itens: [{ itemCardapioId, quantidade }],
+      }),
+    });
+    setMessage('Pedido lançado na comanda.');
+    await loadOperacao();
+  }
+
+  async function updatePedidoCliente(pedidoId, itens) {
+    await api(`/pedidos/${pedidoId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ mesaToken, itens }),
+    });
+    setMessage('Pedido atualizado com sucesso.');
+    await loadCliente();
+  }
+
+  async function updatePedidoOperacao(pedidoId, itens) {
+    await api(`/pedidos/operacao/${pedidoId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ itens }),
+    });
+    setMessage('Pedido atualizado com sucesso.');
+    await loadOperacao();
+  }
+
+  async function deletePedidoCliente(pedidoId) {
+    await api(`/pedidos/${pedidoId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ mesaToken }),
+    });
+    setMessage('Pedido excluído com sucesso.');
+    await loadCliente();
+  }
+
+  async function deletePedidoOperacao(pedidoId) {
+    await api(`/pedidos/operacao/${pedidoId}`, {
+      method: 'DELETE',
+    });
+    setMessage('Pedido excluído com sucesso.');
+    await loadOperacao();
+  }
+
+  async function createComandaOperacao(event) {
+    event.preventDefault();
+
+    await api('/comandas', {
+      method: 'POST',
+      body: JSON.stringify(novaComandaOperacao),
+    });
+
+    setNovaComandaOperacao((current) => ({ ...current, nomeCliente: '' }));
+    setMessage('Comanda aberta para a mesa.');
+    await loadOperacao();
+  }
+
+  async function saveGarcom(event) {
+    event.preventDefault();
+    const body = {
+      nome: garcomForm.nome,
+      email: garcomForm.email,
+    };
+
+    if (garcomForm.senha) {
+      body.senha = garcomForm.senha;
+    }
+
+    if (garcomForm.id) {
+      await api(`/usuarios/garcons/${garcomForm.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      setMessage('Garçom atualizado com sucesso.');
+    } else {
+      await api('/usuarios/garcons', {
+        method: 'POST',
+        body: JSON.stringify({ ...body, senha: garcomForm.senha }),
+      });
+      setMessage('Garçom criado com sucesso.');
+    }
+
+    setGarcomForm({ id: null, nome: '', email: '', senha: '' });
+    await loadOperacao();
+  }
+
+  async function deleteGarcom(garcom) {
+    await api(`/usuarios/garcons/${garcom.id}`, {
+      method: 'DELETE',
+    });
+    setMessage(`Garçom ${garcom.nome} excluído.`);
+    await loadOperacao();
+  }
+
+  function editGarcom(garcom) {
+    setGarcomForm({ id: garcom.id, nome: garcom.nome, email: garcom.email, senha: '' });
+  }
+
+  async function saveMesa(event) {
+    event.preventDefault();
+    const method = mesaForm.id ? 'PUT' : 'POST';
+    const path = mesaForm.id ? `/mesas/${mesaForm.id}` : '/mesas';
+
+    await api(path, {
+      method,
+      body: JSON.stringify({ numero: mesaForm.numero, status: mesaForm.status }),
+    });
+
+    setMesaForm({ id: null, numero: '', status: 'ativa' });
+    setMessage('Mesa salva com sucesso.');
+    await loadOperacao();
+  }
+
+  async function deleteMesa(mesaItem) {
+    await api(`/mesas/${mesaItem.id}`, { method: 'DELETE' });
+    setMessage(`Mesa ${mesaItem.numero} excluída.`);
+    await loadOperacao();
+  }
+
+  function editMesa(mesaItem) {
+    setMesaForm({ id: mesaItem.id, numero: mesaItem.numero, status: mesaItem.status });
+  }
+
+  async function saveCardapio(event) {
+    event.preventDefault();
+    const method = cardapioForm.id ? 'PUT' : 'POST';
+    const path = cardapioForm.id ? `/cardapios/admin/${cardapioForm.id}` : '/cardapios/admin';
+
+    await api(path, {
+      method,
+      body: JSON.stringify({ nome: cardapioForm.nome, ativo: cardapioForm.ativo }),
+    });
+
+    setCardapioForm({ id: null, nome: '', ativo: true });
+    setMessage('Cardápio salvo com sucesso.');
+    await loadOperacao();
+  }
+
+  async function deleteCardapioAdmin(cardapioItem) {
+    await api(`/cardapios/admin/${cardapioItem.id}`, { method: 'DELETE' });
+    setMessage(`Cardápio ${cardapioItem.nome} excluído.`);
+    await loadOperacao();
+  }
+
+  async function toggleCardapioStatus(cardapioItem) {
+    await api(`/cardapios/admin/${cardapioItem.id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ nome: cardapioItem.nome, ativo: !cardapioItem.ativo }),
+    });
+    setMessage(`Cardápio ${cardapioItem.ativo ? 'inativado' : 'ativado'}.`);
+    await loadOperacao();
+  }
+
+  async function saveItemCardapio(event) {
+    event.preventDefault();
+    const method = itemForm.id ? 'PUT' : 'POST';
+    const path = itemForm.id ? `/cardapios/itens/${itemForm.id}` : '/cardapios/itens';
+
+    await api(path, {
+      method,
+      body: JSON.stringify(itemForm),
+    });
+
+    setItemForm({ id: null, nome: '', descricao: '', preco: '', categoria: '', disponivel: true, cardapioId: itemForm.cardapioId });
+    setMessage('Item de cardápio salvo com sucesso.');
+    await loadOperacao();
+  }
+
+  async function deleteItemCardapio(item) {
+    await api(`/cardapios/itens/${item.id}`, { method: 'DELETE' });
+    setMessage(`Item ${item.nome} inativado.`);
+    await loadOperacao();
+  }
+
+  async function toggleItemVinculo(cardapioId, itemCardapioId, vinculado) {
+    await api('/cardapios/vinculos', {
+      method: 'POST',
+      body: JSON.stringify({ cardapioId, itemCardapioId, vinculado }),
+    });
+    await loadOperacao();
+  }
+
+  function logout() {
+    localStorage.removeItem('comandax_token');
+    localStorage.removeItem('comandax_user');
+    setUser(null);
+    setOperacao([]);
+    setComandasOperacao([]);
+    setMessage('Sessão encerrada.');
+  }
+
+  function changeClientScreen(screen) {
+    if (screen === 'cardapio' && !selectedComanda) {
+      setMessage('Crie ou selecione uma comanda antes de acessar o cardápio.');
+      setClientScreen('comanda');
+      return;
+    }
+
+    setClientScreen(screen);
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
         <div>
           <strong>ComandaX</strong>
-          <span>MWN CORE</span>
+          <span>{isAdminRoute ? 'Operação MWN CORE' : isClientRoute ? `Mesa ${mesa?.numero || '--'}` : 'MWN CORE'}</span>
         </div>
-        <nav aria-label="Navegação principal">
-          <button className={view === 'cliente' ? 'active' : ''} onClick={() => setView('cliente')}>
-            <Utensils size={18} /> Cliente
-          </button>
-          <button className={view === 'operacao' ? 'active' : ''} onClick={() => setView('operacao')}>
-            <ChefHat size={18} /> Operação
-          </button>
-        </nav>
+        {isAdminRoute ? (
+          <nav aria-label="Navegação da operação">
+            <button className="active" type="button">
+              <ChefHat size={18} /> Operação
+            </button>
+            {user ? (
+              <button className="ghost" type="button" onClick={logout}>
+                Sair
+              </button>
+            ) : null}
+          </nav>
+        ) : isClientRoute ? (
+          <nav aria-label="Navegação do cliente">
+            <button className={clientScreen === 'cardapio' ? 'active' : ''} type="button" onClick={() => changeClientScreen('cardapio')}>
+              <Utensils size={18} /> Cardápio
+            </button>
+            <button className={clientScreen === 'comanda' ? 'active' : ''} type="button" onClick={() => changeClientScreen('comanda')}>
+              <ReceiptText size={18} /> Comanda
+            </button>
+            <button className={clientScreen === 'pedidos' ? 'active' : ''} type="button" onClick={() => changeClientScreen('pedidos')}>
+              <ClipboardList size={18} /> Pedidos
+            </button>
+          </nav>
+        ) : null}
       </header>
 
       {message && <p className="notice">{message}</p>}
 
-      {view === 'cliente' ? (
-        <section className="layout">
-          <aside className="panel">
-            <label>
-              Token da mesa
-              <input value={mesaToken} onChange={(event) => setMesaToken(event.target.value)} />
-            </label>
-            <div className="mesa-box">
-              <span>Mesa</span>
-              <strong>{mesa?.numero || '--'}</strong>
-            </div>
-
-            <form onSubmit={createComanda} className="stack">
-              <label>
-                Nova comanda
-                <input
-                  placeholder="Nome do cliente"
-                  value={nomeCliente}
-                  onChange={(event) => setNomeCliente(event.target.value)}
-                />
-              </label>
-              <button type="submit">
-                <Plus size={18} /> Criar
-              </button>
-            </form>
-
-            <label>
-              Comanda atual
-              <select value={selectedComanda || ''} onChange={(event) => setSelectedComanda(Number(event.target.value))}>
-                <option value="">Selecione</option>
-                {comandas.map((comanda) => (
-                  <option key={comanda.id} value={comanda.id}>
-                    {comanda.nome_cliente}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </aside>
-
-          <section className="menu-area">
-            {cardapio.map((grupo) => (
-              <div key={grupo.categoria} className="menu-group">
-                <h2>{grupo.categoria}</h2>
-                <div className="grid">
-                  {grupo.itens.map((item) => (
-                    <article className="item-card" key={item.id}>
-                      <div>
-                        <h3>{item.nome}</h3>
-                        <p>{item.descricao}</p>
-                        <strong>{formatMoney(item.preco)}</strong>
-                      </div>
-                      <button type="button" aria-label={`Adicionar ${item.nome}`} onClick={() => addToCart(item)}>
-                        <Plus size={18} />
-                      </button>
-                    </article>
-                  ))}
+      {isClientRoute ? (
+        <section className="client-page">
+          {clientScreen === 'comanda' ? (
+            <section className="client-content narrow">
+              <div className="panel">
+                <div className="mesa-box">
+                  <span>Mesa</span>
+                  <strong>{mesa?.numero || '--'}</strong>
                 </div>
-              </div>
-            ))}
-          </section>
 
-          <aside className="panel">
-            <h2><ReceiptText size={20} /> Pedido</h2>
-            {cart.length === 0 ? <p className="muted">Carrinho vazio.</p> : null}
-            {cart.map((item) => (
-              <div className="cart-row" key={item.itemCardapioId}>
-                <span>{item.quantidade}x {item.nome}</span>
-                <strong>{formatMoney(Number(item.preco) * item.quantidade)}</strong>
-              </div>
-            ))}
-            <div className="total">
-              <span>Total</span>
-              <strong>{formatMoney(total)}</strong>
-            </div>
-            <button type="button" onClick={createPedido}>Enviar pedido</button>
+                <form onSubmit={createComanda} className="stack">
+                  <label>
+                    Nova comanda
+                    <input
+                      placeholder="Nome do cliente"
+                      value={nomeCliente}
+                      onChange={(event) => setNomeCliente(event.target.value)}
+                    />
+                  </label>
+                  <button type="submit">
+                    <Plus size={18} /> Criar
+                  </button>
+                </form>
 
-            <h2><ClipboardList size={20} /> Status</h2>
-            <button type="button" className="ghost" onClick={loadCliente}>
-              <RefreshCcw size={16} /> Atualizar
-            </button>
-            {pedidos.map((pedido) => (
-              <article className="order-card" key={pedido.id}>
-                <strong>Pedido #{pedido.id}</strong>
-                <span className={`status ${slug(pedido.status)}`}>{pedido.status}</span>
-                <small>{pedido.itens.map((item) => `${item.quantidade}x ${item.nome}`).join(', ')}</small>
-              </article>
-            ))}
-          </aside>
+                <label>
+                  Comanda atual
+                  <select value={selectedComanda || ''} onChange={(event) => setSelectedComanda(Number(event.target.value))}>
+                    <option value="">Selecione</option>
+                    {comandas.map((comanda) => (
+                      <option key={comanda.id} value={comanda.id}>
+                        {comanda.nome_cliente}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {comandaAtual ? (
+                  <div className="summary-box">
+                    <span>Total da comanda</span>
+                    <strong>{formatMoney(comandaAtual.total)}</strong>
+                    <small>Solicite o fechamento ao garçom quando terminar.</small>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+
+          {clientScreen === 'cardapio' ? (
+            <section className="client-content">
+              <div className="menu-area">
+                {cardapio.map((grupo) => (
+                  <div key={grupo.categoria} className="menu-group">
+                    <h2>{grupo.categoria}</h2>
+                    <div className="grid">
+                      {grupo.itens.map((item) => (
+                        <article className="item-card" key={item.id}>
+                          <div>
+                            <h3>{item.nome}</h3>
+                            <p>{item.descricao}</p>
+                            <strong>{formatMoney(item.preco)}</strong>
+                          </div>
+                          <button type="button" aria-label={`Adicionar ${item.nome}`} onClick={() => addToCart(item)}>
+                            <Plus size={18} />
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <aside className="panel cart-panel">
+                <h2><ReceiptText size={20} /> Pedido</h2>
+                {cart.length === 0 ? <p className="muted">Carrinho vazio.</p> : null}
+                {cart.map((item) => (
+                  <div className="cart-row" key={item.itemCardapioId}>
+                    <span>{item.quantidade}x {item.nome}</span>
+                    <strong>{formatMoney(Number(item.preco) * item.quantidade)}</strong>
+                  </div>
+                ))}
+                <div className="total">
+                  <span>Total</span>
+                  <strong>{formatMoney(total)}</strong>
+                </div>
+                <button type="button" onClick={createPedido}>Enviar pedido</button>
+              </aside>
+            </section>
+          ) : null}
+
+          {clientScreen === 'pedidos' ? (
+            <section className="client-content narrow">
+              <div className="panel">
+                <h2><ClipboardList size={20} /> Status dos pedidos</h2>
+                <button type="button" className="ghost" onClick={loadCliente}>
+                  <RefreshCcw size={16} /> Atualizar
+                </button>
+                {pedidos.length === 0 ? <p className="muted">Nenhum pedido enviado nesta mesa.</p> : null}
+                {pedidos.map((pedido) => (
+                  <article className="order-card" key={pedido.id}>
+                    <strong>Pedido #{pedido.id}</strong>
+                    <span className={`status ${slug(pedido.status)}`}>{pedido.status}</span>
+                    <small>{pedido.itens.map((item) => `${item.quantidade}x ${item.nome}`).join(', ')}</small>
+                    {pedido.status === 'Na fila' ? (
+                      <button type="button" className="ghost" onClick={() => setEditingOrder({ pedido, mode: 'cliente' })}>
+                        Editar pedido
+                      </button>
+                    ) : null}
+                    {pedido.status === 'Na fila' ? (
+                      <button type="button" className="ghost" onClick={() => deletePedidoCliente(pedido.id)}>
+                        Excluir pedido
+                      </button>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </section>
-      ) : (
+      ) : null}
+
+      {isAdminRoute ? (
         <section className="operation">
           {!user ? (
-            <form className="login-card" onSubmit={submitLogin}>
-              <h1><LogIn size={22} /> Acesso da equipe</h1>
-              <input
-                type="email"
-                placeholder="E-mail"
-                value={login.email}
-                onChange={(event) => setLogin({ ...login, email: event.target.value })}
-              />
-              <input
-                type="password"
-                placeholder="Senha"
-                value={login.senha}
-                onChange={(event) => setLogin({ ...login, senha: event.target.value })}
-              />
-              <button type="submit">Entrar</button>
-            </form>
+            <div className="login-card">
+              {!showRecovery ? (
+                <form className="stack" onSubmit={submitLogin}>
+                  <h1><LogIn size={22} /> Acesso da equipe</h1>
+                  <input
+                    placeholder="Login"
+                    value={login.login}
+                    onChange={(event) => setLogin({ ...login, login: event.target.value })}
+                  />
+                  <input
+                    type="password"
+                    placeholder="Senha"
+                    value={login.senha}
+                    onChange={(event) => setLogin({ ...login, senha: event.target.value })}
+                  />
+                  <button type="submit">Entrar</button>
+                  <button type="button" className="ghost" onClick={() => setShowRecovery(true)}>
+                    Recuperar senha do gestor
+                  </button>
+                </form>
+              ) : (
+                <form className="stack" onSubmit={submitAdminRecovery}>
+                  <h1>Recuperar senha</h1>
+                  <input
+                    placeholder="Login do gestor"
+                    value={recoverAdmin.login}
+                    onChange={(event) => setRecoverAdmin({ ...recoverAdmin, login: event.target.value })}
+                  />
+                  <input
+                    placeholder="Código de recuperação"
+                    type="password"
+                    value={recoverAdmin.codigoRecuperacao}
+                    onChange={(event) => setRecoverAdmin({ ...recoverAdmin, codigoRecuperacao: event.target.value })}
+                  />
+                  <input
+                    placeholder="Nova senha"
+                    type="password"
+                    value={recoverAdmin.novaSenha}
+                    onChange={(event) => setRecoverAdmin({ ...recoverAdmin, novaSenha: event.target.value })}
+                  />
+                  <button type="submit">Redefinir senha</button>
+                  <button type="button" className="ghost" onClick={() => setShowRecovery(false)}>
+                    Voltar ao login
+                  </button>
+                </form>
+              )}
+            </div>
           ) : (
-            <div className="kanban">
-              {['Na fila', 'Em preparo', 'Pronto'].map((status) => (
-                <section key={status} className="lane">
-                  <h2>{status}</h2>
-                  {operacao.filter((pedido) => pedido.status === status).map((pedido) => (
-                    <article className="order-card" key={pedido.id}>
-                      <strong>Mesa {pedido.mesa_numero} · #{pedido.id}</strong>
-                      <span>{pedido.nome_cliente}</span>
-                      <small>{pedido.itens.map((item) => `${item.quantidade}x ${item.nome}`).join(', ')}</small>
-                      <StatusActions pedido={pedido} user={user} onChange={changeStatus} />
-                    </article>
+            <div className="operation-grid">
+              <div className="kanban">
+                {['Na fila', 'Em preparo', 'Pronto'].map((status) => (
+                  <section key={status} className="lane">
+                    <h2>{status}</h2>
+                    {operacao.filter((pedido) => pedido.status === status).map((pedido) => (
+                      <article className="order-card" key={pedido.id}>
+                        <strong>Mesa {pedido.mesa_numero} · #{pedido.id}</strong>
+                        <span>{pedido.nome_cliente}</span>
+                        <small>{pedido.itens.map((item) => `${item.quantidade}x ${item.nome}`).join(', ')}</small>
+                        {canEditOrder(pedido, user) ? (
+                          <button type="button" className="ghost" onClick={() => setEditingOrder({ pedido, mode: 'operacao' })}>
+                            Editar pedido
+                          </button>
+                        ) : null}
+                        {canEditOrder(pedido, user) ? (
+                          <button type="button" className="ghost" onClick={() => deletePedidoOperacao(pedido.id)}>
+                            Excluir pedido
+                          </button>
+                        ) : null}
+                        <StatusActions pedido={pedido} user={user} onChange={changeStatus} />
+                      </article>
+                    ))}
+                  </section>
+                ))}
+              </div>
+
+              {['admin', 'garcom'].includes(user.perfil) ? (
+                <aside className="lane accounts">
+                  <form className="waiter-order" onSubmit={createComandaOperacao}>
+                    <h2>Abrir comanda</h2>
+                    <select
+                      value={novaComandaOperacao.mesaToken}
+                      onChange={(event) => setNovaComandaOperacao({ ...novaComandaOperacao, mesaToken: event.target.value })}
+                    >
+                      {mesasOperacao.map((mesaItem) => (
+                        <option key={mesaItem.id} value={mesaItem.token_qr}>
+                          Mesa {mesaItem.numero}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      placeholder="Nome ou apelido da comanda"
+                      value={novaComandaOperacao.nomeCliente}
+                      onChange={(event) => setNovaComandaOperacao({ ...novaComandaOperacao, nomeCliente: event.target.value })}
+                    />
+                    <button type="submit" disabled={!novaComandaOperacao.mesaToken || novaComandaOperacao.nomeCliente.trim().length < 2}>
+                      Abrir comanda
+                    </button>
+                  </form>
+
+                  <h2><CreditCard size={20} /> Comandas abertas</h2>
+                  {comandasOperacao.length === 0 ? <p className="muted">Nenhuma comanda aberta.</p> : null}
+                  {comandasOperacao.map((comanda) => (
+                    <PaymentCard
+                      key={comanda.id}
+                      cardapio={cardapio}
+                      comanda={comanda}
+                      mesas={mesasOperacao}
+                      user={user}
+                      onCreateOrder={createPedidoOperacao}
+                      onPay={registrarPagamento}
+                      onTransfer={transferirComanda}
+                    />
                   ))}
+                </aside>
+              ) : null}
+
+              {user.perfil === 'admin' ? (
+                <section className="admin-panels">
+                  <form className="password-reset admin-panel" onSubmit={resetPassword}>
+                    <h2>Redefinir senha</h2>
+                    <input
+                      type="email"
+                      placeholder="E-mail do usuário"
+                      value={passwordReset.email}
+                      onChange={(event) => setPasswordReset({ ...passwordReset, email: event.target.value })}
+                    />
+                    <input
+                      type="password"
+                      placeholder="Nova senha"
+                      value={passwordReset.novaSenha}
+                      onChange={(event) => setPasswordReset({ ...passwordReset, novaSenha: event.target.value })}
+                    />
+                    <button type="submit">Redefinir senha</button>
+                  </form>
+
+                  <section className="staff-manager admin-panel">
+                    <h2>Gerenciar garçons</h2>
+                    <form className="waiter-order" onSubmit={saveGarcom}>
+                      <input
+                        placeholder="Nome do garçom"
+                        value={garcomForm.nome}
+                        onChange={(event) => setGarcomForm({ ...garcomForm, nome: event.target.value })}
+                      />
+                      <input
+                        type="email"
+                        placeholder="E-mail"
+                        value={garcomForm.email}
+                        onChange={(event) => setGarcomForm({ ...garcomForm, email: event.target.value })}
+                      />
+                      <input
+                        type="password"
+                        placeholder={garcomForm.id ? 'Nova senha opcional' : 'Senha inicial'}
+                        value={garcomForm.senha}
+                        onChange={(event) => setGarcomForm({ ...garcomForm, senha: event.target.value })}
+                      />
+                      <button
+                        type="submit"
+                        disabled={
+                          garcomForm.nome.trim().length < 2 ||
+                          !garcomForm.email ||
+                          (!garcomForm.id && garcomForm.senha.length < 6)
+                        }
+                      >
+                        {garcomForm.id ? 'Salvar garçom' : 'Criar garçom'}
+                      </button>
+                      {garcomForm.id ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => setGarcomForm({ id: null, nome: '', email: '', senha: '' })}
+                        >
+                          Cancelar edição
+                        </button>
+                      ) : null}
+                    </form>
+
+                    {garcons.map((garcom) => (
+                      <article className="staff-card" key={garcom.id}>
+                        <div>
+                          <strong>{garcom.nome}</strong>
+                          <small>{garcom.email}</small>
+                          <span className={`status ${garcom.ativo ? 'pronto' : 'entregue'}`}>
+                            {garcom.ativo ? 'Ativo' : 'Excluído'}
+                          </span>
+                        </div>
+                        <div className="staff-actions">
+                          <button type="button" className="ghost" onClick={() => editGarcom(garcom)}>
+                            Editar
+                          </button>
+                          <button type="button" disabled={!garcom.ativo} onClick={() => deleteGarcom(garcom)}>
+                            Excluir
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </section>
+
+                  <section className="staff-manager admin-panel">
+                    <h2>Gerenciar mesas</h2>
+                    <form className="waiter-order" onSubmit={saveMesa}>
+                      <input
+                        min="1"
+                        placeholder="Número da mesa"
+                        type="number"
+                        value={mesaForm.numero}
+                        onChange={(event) => setMesaForm({ ...mesaForm, numero: event.target.value })}
+                      />
+                      <select
+                        value={mesaForm.status}
+                        onChange={(event) => setMesaForm({ ...mesaForm, status: event.target.value })}
+                      >
+                        <option value="ativa">Ativa</option>
+                        <option value="inativa">Inativa</option>
+                      </select>
+                      <button type="submit" disabled={!mesaForm.numero || Number(mesaForm.numero) < 1}>
+                        {mesaForm.id ? 'Salvar mesa' : 'Criar mesa'}
+                      </button>
+                      {mesaForm.id ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => setMesaForm({ id: null, numero: '', status: 'ativa' })}
+                        >
+                          Cancelar edição
+                        </button>
+                      ) : null}
+                    </form>
+
+                    {mesasOperacao.map((mesaItem) => (
+                      <article className="staff-card" key={mesaItem.id}>
+                        <div>
+                          <strong>Mesa {mesaItem.numero}</strong>
+                          <small>{mesaItem.token_qr}</small>
+                          <span className={`status ${mesaItem.status === 'ativa' ? 'pronto' : 'entregue'}`}>
+                            {mesaItem.status === 'ativa' ? 'Ativa' : 'Inativa'}
+                          </span>
+                        </div>
+                        <div className="staff-actions">
+                          <button type="button" className="ghost" onClick={() => editMesa(mesaItem)}>
+                            Editar
+                          </button>
+                          <button type="button" disabled={mesaItem.status !== 'ativa'} onClick={() => deleteMesa(mesaItem)}>
+                            Excluir
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </section>
+
+                  <section className="staff-manager admin-panel">
+                    <h2>Gerenciar cardápios</h2>
+                    <form className="waiter-order" onSubmit={saveCardapio}>
+                      <input
+                        placeholder="Nome do cardápio"
+                        value={cardapioForm.nome}
+                        onChange={(event) => setCardapioForm({ ...cardapioForm, nome: event.target.value })}
+                      />
+                      <label className="check-row">
+                        <input
+                          checked={cardapioForm.ativo}
+                          type="checkbox"
+                          onChange={(event) => setCardapioForm({ ...cardapioForm, ativo: event.target.checked })}
+                        />
+                        Ativo
+                      </label>
+                      <button type="submit" disabled={cardapioForm.nome.trim().length < 2}>
+                        {cardapioForm.id ? 'Salvar cardápio' : 'Criar cardápio'}
+                      </button>
+                    </form>
+
+                    {cardapiosAdmin.map((cardapioItem) => (
+                      <article className="staff-card" key={cardapioItem.id}>
+                        <div>
+                          <strong>{cardapioItem.nome}</strong>
+                          <span className={`status ${cardapioItem.ativo ? 'pronto' : 'entregue'}`}>
+                            {cardapioItem.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </div>
+                        <div className="staff-actions">
+                          <button type="button" className="ghost" onClick={() => setCardapioForm(cardapioItem)}>
+                            Editar
+                          </button>
+                          <button type="button" onClick={() => deleteCardapioAdmin(cardapioItem)}>
+                            Excluir
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </section>
+
+                  <section className="staff-manager admin-panel wide">
+                    <h2>Itens do cardápio</h2>
+                    <form className="waiter-order" onSubmit={saveItemCardapio}>
+                      <input
+                        placeholder="Nome do item"
+                        value={itemForm.nome}
+                        onChange={(event) => setItemForm({ ...itemForm, nome: event.target.value })}
+                      />
+                      <input
+                        placeholder="Descrição"
+                        value={itemForm.descricao}
+                        onChange={(event) => setItemForm({ ...itemForm, descricao: event.target.value })}
+                      />
+                      <input
+                        inputMode="decimal"
+                        min="0"
+                        placeholder="Preço"
+                        step="0.01"
+                        type="number"
+                        value={itemForm.preco}
+                        onChange={(event) => setItemForm({ ...itemForm, preco: event.target.value })}
+                      />
+                      <input
+                        placeholder="Categoria"
+                        value={itemForm.categoria}
+                        onChange={(event) => setItemForm({ ...itemForm, categoria: event.target.value })}
+                      />
+                      <select
+                        value={itemForm.cardapioId}
+                        onChange={(event) => setItemForm({ ...itemForm, cardapioId: event.target.value })}
+                      >
+                        <option value="">Sem vínculo inicial</option>
+                        {cardapiosAdmin.map((cardapioItem) => (
+                          <option key={cardapioItem.id} value={cardapioItem.id}>
+                            {cardapioItem.nome}
+                          </option>
+                        ))}
+                      </select>
+                      <label className="check-row">
+                        <input
+                          checked={itemForm.disponivel}
+                          type="checkbox"
+                          onChange={(event) => setItemForm({ ...itemForm, disponivel: event.target.checked })}
+                        />
+                        Disponível
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={itemForm.nome.trim().length < 2 || itemForm.categoria.trim().length < 2 || !itemForm.preco}
+                      >
+                        {itemForm.id ? 'Salvar item' : 'Criar item'}
+                      </button>
+                      {itemForm.id ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => setItemForm({ id: null, nome: '', descricao: '', preco: '', categoria: '', disponivel: true, cardapioId: itemForm.cardapioId })}
+                        >
+                          Cancelar edição
+                        </button>
+                      ) : null}
+                    </form>
+
+                    <div className="items-admin-grid">
+                      {itensAdmin.map((item) => (
+                        <article className="staff-card" key={item.id}>
+                          <div>
+                            <strong>{item.nome}</strong>
+                            <small>{item.categoria} · {formatMoney(item.preco)}</small>
+                            <span className={`status ${item.disponivel ? 'pronto' : 'entregue'}`}>
+                              {item.disponivel ? 'Disponível' : 'Indisponível'}
+                            </span>
+                          </div>
+                          <div className="staff-actions">
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => setItemForm({ ...item, cardapioId: itemForm.cardapioId })}
+                            >
+                              Editar
+                            </button>
+                            <button type="button" onClick={() => deleteItemCardapio(item)}>
+                              Excluir
+                            </button>
+                          </div>
+                          {cardapiosAdmin.length > 0 ? (
+                            <div className="link-grid">
+                              {cardapiosAdmin.map((cardapioItem) => {
+                                const linked = cardapioItem.item_ids?.map(Number).includes(Number(item.id));
+                                return (
+                                  <label className="check-row" key={`${cardapioItem.id}-${item.id}`}>
+                                    <input
+                                      checked={linked}
+                                      type="checkbox"
+                                      onChange={(event) => toggleItemVinculo(cardapioItem.id, item.id, event.target.checked)}
+                                    />
+                                    {cardapioItem.nome}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
+                  </section>
                 </section>
-              ))}
+              ) : null}
+
+              {['garcom', 'cozinha'].includes(user.perfil) ? (
+                <section className="admin-panels">
+                  <section className="staff-manager admin-panel wide">
+                    <h2>Cardápios da operação</h2>
+                    {cardapiosAdmin.map((cardapioItem) => (
+                      <article className="staff-card" key={cardapioItem.id}>
+                        <div>
+                          <strong>{cardapioItem.nome}</strong>
+                          <span className={`status ${cardapioItem.ativo ? 'pronto' : 'entregue'}`}>
+                            {cardapioItem.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </div>
+                        <button type="button" className="ghost" onClick={() => toggleCardapioStatus(cardapioItem)}>
+                          {cardapioItem.ativo ? 'Inativar cardápio' : 'Ativar cardápio'}
+                        </button>
+                      </article>
+                    ))}
+                  </section>
+
+                  <section className="staff-manager admin-panel wide">
+                    <h2>Itens do cardápio</h2>
+                    <div className="items-admin-grid">
+                      {itensAdmin.map((item) => (
+                        <article className="staff-card" key={item.id}>
+                          <div>
+                            <strong>{item.nome}</strong>
+                            <small>{item.categoria} · {formatMoney(item.preco)}</small>
+                            <span className={`status ${item.disponivel ? 'pronto' : 'entregue'}`}>
+                              {item.disponivel ? 'Disponível' : 'Indisponível'}
+                            </span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                </section>
+              ) : null}
             </div>
           )}
         </section>
-      )}
+      ) : null}
+
+      {route.type === 'home' ? (
+        <section className="empty-route">
+          <button type="button" onClick={() => navigate(`/${fallbackMesaToken}`)}>Abrir mesa de exemplo</button>
+          <button type="button" className="ghost" onClick={() => navigate('/admin')}>Acessar operação</button>
+        </section>
+      ) : null}
+
+      {orderConfirmation ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="order-confirmation-title">
+            <h2 id="order-confirmation-title">{orderConfirmation.title}</h2>
+            <p>{orderConfirmation.text}</p>
+            <button type="button" onClick={() => {
+              setOrderConfirmation(null);
+              setClientScreen('pedidos');
+            }}>
+              OK
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {editingOrder ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="order-edit-title">
+            <h2 id="order-edit-title">Editar pedido #{editingOrder.pedido.id}</h2>
+            <OrderEditForm
+              cardapio={cardapio}
+              pedido={editingOrder.pedido}
+              onCancel={() => setEditingOrder(null)}
+              onSave={async (pedidoId, itens) => {
+                if (editingOrder.mode === 'cliente') {
+                  await updatePedidoCliente(pedidoId, itens);
+                } else {
+                  await updatePedidoOperacao(pedidoId, itens);
+                }
+                setEditingOrder(null);
+              }}
+            />
+          </section>
+        </div>
+      ) : null}
     </main>
+  );
+}
+
+function PaymentCard({ cardapio, comanda, mesas, user, onCreateOrder, onPay, onTransfer }) {
+  const [formaPagamento, setFormaPagamento] = useState('pix');
+  const [mesaDestinoId, setMesaDestinoId] = useState('');
+  const itensCardapio = cardapio.flatMap((grupo) => grupo.itens);
+  const [pedido, setPedido] = useState({
+    itemCardapioId: itensCardapio[0]?.id || '',
+    quantidade: 1,
+  });
+  const canPay = ['admin', 'garcom'].includes(user.perfil) && Number(comanda.total) > 0;
+
+  useEffect(() => {
+    if (!pedido.itemCardapioId && itensCardapio[0]) {
+      setPedido((current) => ({ ...current, itemCardapioId: itensCardapio[0].id }));
+    }
+  }, [itensCardapio, pedido.itemCardapioId]);
+
+  return (
+    <article className="order-card">
+      <strong>Mesa {comanda.mesa_numero} · {comanda.nome_cliente}</strong>
+      <div className="total">
+        <span>Total</span>
+        <strong>{formatMoney(comanda.total)}</strong>
+      </div>
+      <form
+        className="waiter-order"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onCreateOrder({
+            comandaId: comanda.id,
+            itemCardapioId: pedido.itemCardapioId,
+            quantidade: Number(pedido.quantidade),
+          });
+          setPedido({ ...pedido, quantidade: 1 });
+        }}
+      >
+        <select
+          value={pedido.itemCardapioId}
+          onChange={(event) => setPedido({ ...pedido, itemCardapioId: event.target.value })}
+        >
+          <option value="">Selecionar item</option>
+          {itensCardapio.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.nome} · {formatMoney(item.preco)}
+            </option>
+          ))}
+        </select>
+        <input
+          min="1"
+          type="number"
+          value={pedido.quantidade}
+          onChange={(event) => setPedido({ ...pedido, quantidade: event.target.value })}
+        />
+        <button type="submit" disabled={!pedido.itemCardapioId}>
+          Lançar pedido
+        </button>
+      </form>
+      <select value={formaPagamento} onChange={(event) => setFormaPagamento(event.target.value)}>
+        <option value="pix">Pix</option>
+        <option value="cartao_debito">Cartão de débito</option>
+        <option value="cartao_credito">Cartão de crédito</option>
+        <option value="dinheiro">Dinheiro</option>
+      </select>
+      <button type="button" disabled={!canPay} onClick={() => onPay(comanda, formaPagamento)}>
+        Confirmar pagamento
+      </button>
+      {['admin', 'garcom'].includes(user.perfil) ? (
+        <form
+          className="waiter-order"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onTransfer(comanda, mesaDestinoId);
+            setMesaDestinoId('');
+          }}
+        >
+          <strong>Transferir comanda</strong>
+          <select value={mesaDestinoId} onChange={(event) => setMesaDestinoId(event.target.value)}>
+            <option value="">Mesa de destino</option>
+            {mesas
+              .filter((mesa) => mesa.status === 'ativa' && Number(mesa.id) !== Number(comanda.mesa_id))
+              .map((mesa) => (
+                <option key={mesa.id} value={mesa.id}>
+                  Mesa {mesa.numero}
+                </option>
+              ))}
+          </select>
+          <button type="submit" disabled={!mesaDestinoId}>
+            Transferir
+          </button>
+        </form>
+      ) : null}
+    </article>
+  );
+}
+
+function OrderEditForm({ cardapio, pedido, onCancel, onSave }) {
+  const itensCardapio = cardapio.flatMap((grupo) => grupo.itens);
+  const firstItemId = itensCardapio[0]?.id || '';
+  const [itens, setItens] = useState(
+    pedido.itens.length > 0
+      ? pedido.itens.map((item) => ({
+          itemCardapioId: item.itemCardapioId || firstItemId,
+          quantidade: item.quantidade,
+        }))
+      : [{ itemCardapioId: firstItemId, quantidade: 1 }],
+  );
+
+  function updateItem(index, field, value) {
+    setItens((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
+    );
+  }
+
+  function removeItem(index) {
+    setItens((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  return (
+    <form
+      className="order-edit"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave(
+          pedido.id,
+          itens.map((item) => ({
+            itemCardapioId: item.itemCardapioId,
+            quantidade: Number(item.quantidade),
+          })),
+        );
+      }}
+    >
+      <strong>Editar pedido</strong>
+      {itens.map((item, index) => (
+        <div className="edit-row" key={`${pedido.id}-${index}`}>
+          <select
+            value={item.itemCardapioId}
+            onChange={(event) => updateItem(index, 'itemCardapioId', event.target.value)}
+          >
+            {itensCardapio.map((cardapioItem) => (
+              <option key={cardapioItem.id} value={cardapioItem.id}>
+                {cardapioItem.nome}
+              </option>
+            ))}
+          </select>
+          <input
+            min="1"
+            type="number"
+            value={item.quantidade}
+            onChange={(event) => updateItem(index, 'quantidade', event.target.value)}
+          />
+          <button type="button" className="ghost" disabled={itens.length === 1} onClick={() => removeItem(index)}>
+            Remover
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="ghost"
+        disabled={!firstItemId}
+        onClick={() => setItens((current) => [...current, { itemCardapioId: firstItemId, quantidade: 1 }])}
+      >
+        Adicionar item
+      </button>
+      <button type="submit" disabled={itens.some((item) => !item.itemCardapioId || Number(item.quantidade) < 1)}>
+        Salvar edição
+      </button>
+      <button type="button" className="ghost" onClick={onCancel}>
+        Cancelar
+      </button>
+    </form>
   );
 }
 
@@ -291,6 +1282,18 @@ function StatusActions({ pedido, user, onChange }) {
   if (!next) return null;
 
   return <button type="button" onClick={() => onChange(pedido, next)}>Mover para {next}</button>;
+}
+
+function canEditOrder(pedido, user) {
+  if (user.perfil === 'admin') {
+    return pedido.status !== 'Entregue';
+  }
+
+  if (user.perfil === 'garcom') {
+    return pedido.status === 'Na fila';
+  }
+
+  return false;
 }
 
 function formatMoney(value) {
@@ -317,4 +1320,18 @@ function readStoredUser() {
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function getRouteFromPath() {
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '');
+
+  if (path === 'admin' || path === 'admin/login') {
+    return { type: 'admin' };
+  }
+
+  if (!path) {
+    return { type: 'home' };
+  }
+
+  return { type: 'cliente', mesaToken: path };
 }
