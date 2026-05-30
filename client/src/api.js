@@ -1,4 +1,10 @@
-const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3001/api`;
+const localHosts = ['localhost', '127.0.0.1'];
+const isLocalVite = localHosts.includes(window.location.hostname) && window.location.port.startsWith('517');
+const defaultApiUrl = isLocalVite
+  ? `${window.location.protocol}//${window.location.hostname}:3001/api`
+  : `${window.location.origin}/api`;
+
+const API_URL = import.meta.env.VITE_API_URL || defaultApiUrl;
 
 export async function api(path, options = {}) {
   const token = localStorage.getItem('comandax_token');

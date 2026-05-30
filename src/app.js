@@ -22,11 +22,12 @@ app.use(helmet());
 app.use(
   cors({
     origin(origin, callback) {
-      const viteLocalhost = /^http:\/\/(localhost|127\.0\.0\.1):517\d$/;
-      const vitePrivateNetwork =
-        /^http:\/\/(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}):517\d$/;
+      const allowedOrigins = new Set([env.clientUrl, ...env.corsOrigins]);
+      const localhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+      const privateNetwork =
+        /^https?:\/\/(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
 
-      if (!origin || origin === env.clientUrl || viteLocalhost.test(origin) || vitePrivateNetwork.test(origin)) {
+      if (!origin || allowedOrigins.has(origin) || localhost.test(origin) || privateNetwork.test(origin)) {
         callback(null, true);
         return;
       }

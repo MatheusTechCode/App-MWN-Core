@@ -176,6 +176,14 @@ Start Command: npm run start:sqlite
 
 O Express servirá a API em `/api` e o frontend React nas demais rotas, como `/admin` e `/mwn_qr_a8F3kP7xQ2L9`.
 
+Se o frontend estiver em outro domínio diferente da API, libere a origem:
+
+```env
+CORS_ORIGINS=https://seu-front.com,https://outro-dominio.com
+```
+
+Quando frontend e API estão no mesmo Web Service do Render, não é necessário configurar CORS para a URL do próprio Render.
+
 Ou configure a variável de ambiente abaixo e use `npm start`:
 
 ```env
