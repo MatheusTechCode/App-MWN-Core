@@ -1,4 +1,4 @@
-import { ChefHat, ClipboardList, CreditCard, LogIn, Plus, ReceiptText, RefreshCcw, Utensils } from 'lucide-react';
+import { ChefHat, ClipboardList, CreditCard, Plus, ReceiptText, RefreshCcw, Utensils } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 
@@ -46,6 +46,7 @@ export function App() {
 
   const isAdminRoute = route.type === 'admin';
   const isClientRoute = route.type === 'cliente';
+  const isLoginRoute = isAdminRoute && !user;
 
   function navigate(path) {
     window.history.pushState({}, '', path);
@@ -456,36 +457,38 @@ export function App() {
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div>
-          <strong>ComandaX</strong>
-          <span>{isAdminRoute ? 'Operação MWN CORE' : isClientRoute ? `Mesa ${mesa?.numero || '--'}` : 'MWN CORE'}</span>
-        </div>
-        {isAdminRoute ? (
-          <nav aria-label="Navegação da operação">
-            <button className="active" type="button">
-              <ChefHat size={18} /> Operação
-            </button>
-            {user ? (
-              <button className="ghost" type="button" onClick={logout}>
-                Sair
+      {!isLoginRoute ? (
+        <header className="topbar">
+          <div>
+            <strong>ComandaX</strong>
+            <span>{isAdminRoute ? 'Operação MWN CORE' : isClientRoute ? `Mesa ${mesa?.numero || '--'}` : 'MWN CORE'}</span>
+          </div>
+          {isAdminRoute ? (
+            <nav aria-label="Navegação da operação">
+              <button className="active" type="button">
+                <ChefHat size={18} /> Operação
               </button>
-            ) : null}
-          </nav>
-        ) : isClientRoute ? (
-          <nav aria-label="Navegação do cliente">
-            <button className={clientScreen === 'cardapio' ? 'active' : ''} type="button" onClick={() => changeClientScreen('cardapio')}>
-              <Utensils size={18} /> Cardápio
-            </button>
-            <button className={clientScreen === 'comanda' ? 'active' : ''} type="button" onClick={() => changeClientScreen('comanda')}>
-              <ReceiptText size={18} /> Comanda
-            </button>
-            <button className={clientScreen === 'pedidos' ? 'active' : ''} type="button" onClick={() => changeClientScreen('pedidos')}>
-              <ClipboardList size={18} /> Pedidos
-            </button>
-          </nav>
-        ) : null}
-      </header>
+              {user ? (
+                <button className="ghost" type="button" onClick={logout}>
+                  Sair
+                </button>
+              ) : null}
+            </nav>
+          ) : isClientRoute ? (
+            <nav aria-label="Navegação do cliente">
+              <button className={clientScreen === 'cardapio' ? 'active' : ''} type="button" onClick={() => changeClientScreen('cardapio')}>
+                <Utensils size={18} /> Cardápio
+              </button>
+              <button className={clientScreen === 'comanda' ? 'active' : ''} type="button" onClick={() => changeClientScreen('comanda')}>
+                <ReceiptText size={18} /> Comanda
+              </button>
+              <button className={clientScreen === 'pedidos' ? 'active' : ''} type="button" onClick={() => changeClientScreen('pedidos')}>
+                <ClipboardList size={18} /> Pedidos
+              </button>
+            </nav>
+          ) : null}
+        </header>
+      ) : null}
 
       {message && <p className="notice">{message}</p>}
 
@@ -610,50 +613,80 @@ export function App() {
       ) : null}
 
       {isAdminRoute ? (
-        <section className="operation">
+        <section className={isLoginRoute ? 'login-screen' : 'operation'}>
           {!user ? (
             <div className="login-card">
               {!showRecovery ? (
-                <form className="stack" onSubmit={submitLogin}>
-                  <h1><LogIn size={22} /> Acesso da equipe</h1>
-                  <input
-                    placeholder="Login"
-                    value={login.login}
-                    onChange={(event) => setLogin({ ...login, login: event.target.value })}
-                  />
-                  <input
-                    type="password"
-                    placeholder="Senha"
-                    value={login.senha}
-                    onChange={(event) => setLogin({ ...login, senha: event.target.value })}
-                  />
+                <form className="stack login-form" onSubmit={submitLogin}>
+                  <div className="login-brand">
+                    <img src="/comanda-x.jpeg" alt="Comanda X" />
+                  </div>
+                  <div className="login-copy">
+                    <h1>Bem-vindo ao Comanda <span>X</span></h1>
+                    <p>Faça login para continuar</p>
+                  </div>
+                  <label>
+                    Usuário
+                    <input
+                      placeholder="Nome ou e-mail"
+                      value={login.login}
+                      onChange={(event) => setLogin({ ...login, login: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Senha
+                    <input
+                      type="password"
+                      placeholder="Sua senha"
+                      value={login.senha}
+                      onChange={(event) => setLogin({ ...login, senha: event.target.value })}
+                    />
+                  </label>
                   <button type="submit">Entrar</button>
-                  <button type="button" className="ghost" onClick={() => setShowRecovery(true)}>
-                    Recuperar senha do gestor
-                  </button>
+                  <p className="login-recovery">
+                    Esqueceu a senha?{' '}
+                    <button type="button" className="link-button" onClick={() => setShowRecovery(true)}>
+                      Recuperar
+                    </button>
+                  </p>
                 </form>
               ) : (
-                <form className="stack" onSubmit={submitAdminRecovery}>
-                  <h1>Recuperar senha</h1>
-                  <input
-                    placeholder="Login do gestor"
-                    value={recoverAdmin.login}
-                    onChange={(event) => setRecoverAdmin({ ...recoverAdmin, login: event.target.value })}
-                  />
-                  <input
-                    placeholder="Código de recuperação"
-                    type="password"
-                    value={recoverAdmin.codigoRecuperacao}
-                    onChange={(event) => setRecoverAdmin({ ...recoverAdmin, codigoRecuperacao: event.target.value })}
-                  />
-                  <input
-                    placeholder="Nova senha"
-                    type="password"
-                    value={recoverAdmin.novaSenha}
-                    onChange={(event) => setRecoverAdmin({ ...recoverAdmin, novaSenha: event.target.value })}
-                  />
+                <form className="stack login-form" onSubmit={submitAdminRecovery}>
+                  <div className="login-brand">
+                    <img src="/comanda-x.jpeg" alt="Comanda X" />
+                  </div>
+                  <div className="login-copy">
+                    <h1>Recuperar senha</h1>
+                    <p>Informe os dados do gestor para redefinir o acesso</p>
+                  </div>
+                  <label>
+                    Usuário
+                    <input
+                      placeholder="Login do gestor"
+                      value={recoverAdmin.login}
+                      onChange={(event) => setRecoverAdmin({ ...recoverAdmin, login: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Código de recuperação
+                    <input
+                      placeholder="Código de recuperação"
+                      type="password"
+                      value={recoverAdmin.codigoRecuperacao}
+                      onChange={(event) => setRecoverAdmin({ ...recoverAdmin, codigoRecuperacao: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Nova senha
+                    <input
+                      placeholder="Nova senha"
+                      type="password"
+                      value={recoverAdmin.novaSenha}
+                      onChange={(event) => setRecoverAdmin({ ...recoverAdmin, novaSenha: event.target.value })}
+                    />
+                  </label>
                   <button type="submit">Redefinir senha</button>
-                  <button type="button" className="ghost" onClick={() => setShowRecovery(false)}>
+                  <button type="button" className="link-button" onClick={() => setShowRecovery(false)}>
                     Voltar ao login
                   </button>
                 </form>

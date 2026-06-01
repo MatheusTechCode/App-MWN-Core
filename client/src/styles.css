@@ -524,18 +524,115 @@ small {
   padding: var(--spacing-5);
 }
 
-.login-card {
-  margin: var(--spacing-7) auto 0;
-  max-width: 380px;
+.login-screen {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(0, 140, 255, 0.28), transparent 32%),
+    linear-gradient(180deg, #071120 0%, #020817 100%);
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--spacing-5);
 }
 
-.login-card h1 {
+.login-card {
+  background: linear-gradient(180deg, rgba(6, 13, 27, 0.98), rgba(3, 8, 18, 0.98));
+  border: 1px solid rgba(0, 209, 255, 0.18);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55), 0 0 36px rgba(0, 140, 255, 0.18);
+  margin: 0 auto;
+  max-width: 390px;
+  padding: var(--spacing-6);
+  width: 100%;
+}
+
+.login-form {
+  gap: var(--spacing-4);
+}
+
+.login-brand {
   align-items: center;
-  color: var(--color-text);
+  background: rgba(2, 8, 23, 0.76);
+  border: 1px solid rgba(0, 209, 255, 0.16);
+  border-radius: 20px;
   display: flex;
-  font-size: var(--font-size-lg);
+  justify-content: center;
+  justify-self: center;
+  min-height: 82px;
+  padding: var(--spacing-2);
+  width: 118px;
+}
+
+.login-brand img {
+  display: block;
+  height: 64px;
+  object-fit: contain;
+  width: 96px;
+}
+
+.login-copy {
+  display: grid;
   gap: var(--spacing-2);
+  text-align: center;
+}
+
+.login-copy h1 {
+  color: var(--color-text);
+  font-size: 26px;
+  line-height: 1.18;
   margin: 0;
+}
+
+.login-copy h1 span {
+  color: var(--color-primary-light);
+}
+
+.login-copy p,
+.login-recovery {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.login-card label {
+  color: var(--color-text);
+  gap: var(--spacing-2);
+}
+
+.login-card input {
+  background: #121a2d;
+  border-color: rgba(148, 163, 184, 0.18);
+  border-radius: var(--radius-lg);
+  min-height: 50px;
+  padding: 12px var(--spacing-4);
+}
+
+.login-card > .login-form > button:not(.link-button) {
+  border-radius: var(--radius-lg);
+  margin-top: var(--spacing-1);
+  min-height: 50px;
+  width: 100%;
+}
+
+.login-recovery {
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+button.link-button {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--color-primary-light);
+  display: inline;
+  font-weight: var(--font-weight-semibold);
+  min-height: auto;
+  padding: 0;
+}
+
+button.link-button:hover {
+  box-shadow: none;
+  filter: brightness(1.12);
+  transform: none;
 }
 
 .kanban {
