@@ -547,27 +547,27 @@ small {
 }
 
 .login-form {
-  gap: var(--spacing-4);
+  gap: var(--spacing-5);
 }
 
 .login-brand {
   align-items: center;
-  background: rgba(2, 8, 23, 0.76);
-  border: 1px solid rgba(0, 209, 255, 0.16);
-  border-radius: 20px;
+  background: transparent;
+  border: 0;
   display: flex;
   justify-content: center;
   justify-self: center;
-  min-height: 82px;
-  padding: var(--spacing-2);
-  width: 118px;
+  min-height: 150px;
+  padding: 0;
+  width: 100%;
 }
 
 .login-brand img {
   display: block;
-  height: 64px;
+  height: 138px;
+  max-width: 100%;
   object-fit: contain;
-  width: 96px;
+  width: 260px;
 }
 
 .login-copy {

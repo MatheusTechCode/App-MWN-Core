@@ -619,11 +619,14 @@ export function App() {
               {!showRecovery ? (
                 <form className="stack login-form" onSubmit={submitLogin}>
                   <div className="login-brand">
-                    <img src="/comanda-x.jpeg" alt="Comanda X" />
-                  </div>
-                  <div className="login-copy">
-                    <h1>Bem-vindo ao Comanda <span>X</span></h1>
-                    <p>Faça login para continuar</p>
+                    <img
+                      src="/comanda-x.png"
+                      alt="Comanda X"
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src = '/comanda-x.jpeg';
+                      }}
+                    />
                   </div>
                   <label>
                     Usuário
@@ -653,7 +656,14 @@ export function App() {
               ) : (
                 <form className="stack login-form" onSubmit={submitAdminRecovery}>
                   <div className="login-brand">
-                    <img src="/comanda-x.jpeg" alt="Comanda X" />
+                    <img
+                      src="/comanda-x.png"
+                      alt="Comanda X"
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src = '/comanda-x.jpeg';
+                      }}
+                    />
                   </div>
                   <div className="login-copy">
                     <h1>Recuperar senha</h1>
