@@ -1,4 +1,4 @@
-import { ChefHat, ClipboardList, CreditCard, Plus, ReceiptText, RefreshCcw, Utensils } from 'lucide-react';
+import { BookOpen, ClipboardList, CreditCard, Plus, ReceiptText, RefreshCcw, Settings, Table2, Users, Utensils } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 
@@ -47,6 +47,15 @@ export function App() {
   const isAdminRoute = route.type === 'admin';
   const isClientRoute = route.type === 'cliente';
   const isLoginRoute = isAdminRoute && !user;
+  const adminPage = route.adminPage || 'pedidos';
+  const adminNavItems = [
+    { id: 'pedidos', label: 'Pedidos', icon: ClipboardList, perfis: ['admin', 'garcom', 'cozinha'] },
+    { id: 'comandas', label: 'Comandas', icon: CreditCard, perfis: ['admin', 'garcom'] },
+    { id: 'cardapios', label: 'Cardápios', icon: BookOpen, perfis: ['admin', 'garcom', 'cozinha'] },
+    { id: 'mesas', label: 'Mesas', icon: Table2, perfis: ['admin'] },
+    { id: 'garcons', label: 'Garçons', icon: Users, perfis: ['admin'] },
+    { id: 'configuracoes', label: 'Configurações', icon: Settings, perfis: ['admin'] },
+  ].filter((item) => !user || item.perfis.includes(user.perfil));
 
   function navigate(path) {
     window.history.pushState({}, '', path);
@@ -465,9 +474,6 @@ export function App() {
           </div>
           {isAdminRoute ? (
             <nav aria-label="Navegação da operação">
-              <button className="active" type="button">
-                <ChefHat size={18} /> Operação
-              </button>
               {user ? (
                 <button className="ghost" type="button" onClick={logout}>
                   Sair
@@ -703,8 +709,33 @@ export function App() {
               )}
             </div>
           ) : (
-            <div className="operation-grid">
-              <div className="kanban">
+            <div className="operation-layout">
+              <nav className="admin-nav" aria-label="Áreas administrativas">
+                {adminNavItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      className={adminPage === item.id ? 'active' : ''}
+                      type="button"
+                      onClick={() => navigate(`/admin/${item.id}`)}
+                    >
+                      <Icon size={18} /> {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <div className="operation-page">
+                {!adminNavItems.some((item) => item.id === adminPage) ? (
+                  <section className="admin-panel wide">
+                    <h2>Sem permissão</h2>
+                    <p className="muted">Seu perfil não possui acesso a esta área.</p>
+                  </section>
+                ) : null}
+
+                {adminPage === 'pedidos' ? (
+                  <div className="kanban">
                 {['Na fila', 'Em preparo', 'Pronto'].map((status) => (
                   <section key={status} className="lane">
                     <h2>{status}</h2>
@@ -728,10 +759,12 @@ export function App() {
                     ))}
                   </section>
                 ))}
-              </div>
+                  </div>
+                ) : null}
 
-              {['admin', 'garcom'].includes(user.perfil) ? (
-                <aside className="lane accounts">
+                {adminPage === 'comandas' && ['admin', 'garcom'].includes(user.perfil) ? (
+                  <section className="comandas-page">
+                    <aside className="lane accounts">
                   <form className="waiter-order" onSubmit={createComandaOperacao}>
                     <h2>Abrir comanda</h2>
                     <select
@@ -768,12 +801,14 @@ export function App() {
                       onTransfer={transferirComanda}
                     />
                   ))}
-                </aside>
-              ) : null}
+                    </aside>
+                  </section>
+                ) : null}
 
-              {user.perfil === 'admin' ? (
-                <section className="admin-panels">
-                  <form className="password-reset admin-panel" onSubmit={resetPassword}>
+                {user.perfil === 'admin' && ['configuracoes', 'garcons', 'mesas', 'cardapios'].includes(adminPage) ? (
+                  <section className="admin-panels single-page">
+                    {adminPage === 'configuracoes' ? (
+                      <form className="password-reset admin-panel" onSubmit={resetPassword}>
                     <h2>Redefinir senha</h2>
                     <input
                       type="email"
@@ -788,9 +823,11 @@ export function App() {
                       onChange={(event) => setPasswordReset({ ...passwordReset, novaSenha: event.target.value })}
                     />
                     <button type="submit">Redefinir senha</button>
-                  </form>
+                      </form>
+                    ) : null}
 
-                  <section className="staff-manager admin-panel">
+                    {adminPage === 'garcons' ? (
+                      <section className="staff-manager admin-panel">
                     <h2>Gerenciar garçons</h2>
                     <form className="waiter-order" onSubmit={saveGarcom}>
                       <input
@@ -850,9 +887,11 @@ export function App() {
                         </div>
                       </article>
                     ))}
-                  </section>
+                      </section>
+                    ) : null}
 
-                  <section className="staff-manager admin-panel">
+                    {adminPage === 'mesas' ? (
+                      <section className="staff-manager admin-panel">
                     <h2>Gerenciar mesas</h2>
                     <form className="waiter-order" onSubmit={saveMesa}>
                       <input
@@ -902,9 +941,11 @@ export function App() {
                         </div>
                       </article>
                     ))}
-                  </section>
+                      </section>
+                    ) : null}
 
-                  <section className="staff-manager admin-panel">
+                    {adminPage === 'cardapios' ? (
+                      <section className="staff-manager admin-panel">
                     <h2>Gerenciar cardápios</h2>
                     <form className="waiter-order" onSubmit={saveCardapio}>
                       <input
@@ -943,9 +984,11 @@ export function App() {
                         </div>
                       </article>
                     ))}
-                  </section>
+                      </section>
+                    ) : null}
 
-                  <section className="staff-manager admin-panel wide">
+                    {adminPage === 'cardapios' ? (
+                      <section className="staff-manager admin-panel wide">
                     <h2>Itens do cardápio</h2>
                     <form className="waiter-order" onSubmit={saveItemCardapio}>
                       <input
@@ -1050,12 +1093,13 @@ export function App() {
                         </article>
                       ))}
                     </div>
+                      </section>
+                    ) : null}
                   </section>
-                </section>
-              ) : null}
+                ) : null}
 
-              {['garcom', 'cozinha'].includes(user.perfil) ? (
-                <section className="admin-panels">
+                {adminPage === 'cardapios' && ['garcom', 'cozinha'].includes(user.perfil) ? (
+                  <section className="admin-panels single-page">
                   <section className="staff-manager admin-panel wide">
                     <h2>Cardápios da operação</h2>
                     {cardapiosAdmin.map((cardapioItem) => (
@@ -1091,6 +1135,7 @@ export function App() {
                   </section>
                 </section>
               ) : null}
+              </div>
             </div>
           )}
         </section>
@@ -1369,7 +1414,11 @@ function getRouteFromPath() {
   const path = window.location.pathname.replace(/^\/+|\/+$/g, '');
 
   if (path === 'admin' || path === 'admin/login') {
-    return { type: 'admin' };
+    return { type: 'admin', adminPage: 'pedidos' };
+  }
+
+  if (path.startsWith('admin/')) {
+    return { type: 'admin', adminPage: path.split('/')[1] || 'pedidos' };
   }
 
   if (!path) {
