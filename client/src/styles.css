@@ -524,6 +524,52 @@ small {
   padding: var(--spacing-5);
 }
 
+.operation-layout {
+  align-items: start;
+  display: grid;
+  gap: var(--spacing-5);
+  grid-template-columns: 230px minmax(0, 1fr);
+}
+
+.operation-page {
+  display: grid;
+  gap: var(--spacing-5);
+  min-width: 0;
+}
+
+.admin-nav {
+  background: var(--gradient-card);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  display: grid;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  position: sticky;
+  top: calc(var(--header-height) + var(--spacing-4));
+}
+
+.admin-nav button {
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  color: var(--color-text-secondary);
+  justify-content: flex-start;
+  min-height: 42px;
+  padding: 10px var(--spacing-3);
+}
+
+.admin-nav button.active {
+  background: rgba(0, 140, 255, 0.18);
+  border-color: var(--color-border-soft);
+  color: var(--color-text);
+}
+
+.comandas-page {
+  display: grid;
+  gap: var(--spacing-5);
+}
+
 .login-screen {
   align-items: center;
   background:
@@ -656,6 +702,10 @@ button.link-button:hover {
   grid-template-columns: repeat(3, minmax(260px, 1fr));
 }
 
+.admin-panels.single-page {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
 .admin-panel {
   background: var(--gradient-card);
   border: var(--card-border);
@@ -744,14 +794,20 @@ button.link-button:hover {
   .layout,
   .client-content,
   .admin-panels,
+  .operation-layout,
   .operation-grid,
   .kanban {
     grid-template-columns: 1fr;
   }
 
   .panel,
+  .admin-nav,
   .accounts {
     position: static;
+  }
+
+  .admin-nav {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 }
 
@@ -770,6 +826,10 @@ button.link-button:hover {
   .client-content,
   .operation {
     padding: var(--spacing-4);
+  }
+
+  .admin-nav {
+    grid-template-columns: 1fr;
   }
 
   .topbar nav {
