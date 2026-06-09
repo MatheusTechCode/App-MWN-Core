@@ -605,6 +605,7 @@ export function App() {
                   <article className="order-card" key={pedido.id}>
                     <strong>Pedido #{pedido.id}</strong>
                     <span className={`status ${slug(pedido.status)}`}>{pedido.status}</span>
+                    <small>Há {formatDuration(pedido.tempo_status_atual_segundos)} neste status</small>
                     <small>{pedido.itens.map((item) => `${item.quantidade}x ${item.nome}`).join(', ')}</small>
                     {pedido.status === 'Na fila' ? (
                       <button type="button" className="ghost" onClick={() => setEditingOrder({ pedido, mode: 'cliente' })}>
@@ -749,6 +750,7 @@ export function App() {
                       <article className="order-card" key={pedido.id}>
                         <strong>Mesa {pedido.mesa_numero} · #{pedido.id}</strong>
                         <span>{pedido.nome_cliente}</span>
+                        <small>Há {formatDuration(pedido.tempo_status_atual_segundos)} em {pedido.status.toLowerCase()}</small>
                         <small>{pedido.itens.map((item) => `${item.quantidade}x ${item.nome}`).join(', ')}</small>
                         {canEditOrder(pedido, user) ? (
                           <button type="button" className="ghost" onClick={() => setEditingOrder({ pedido, mode: 'operacao' })}>
@@ -1534,6 +1536,22 @@ function formatDateTime(value) {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(new Date(value));
+}
+
+function formatDuration(totalSeconds) {
+  const seconds = Math.max(0, Number(totalSeconds) || 0);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}min`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}min`;
+  }
+
+  return 'menos de 1min';
 }
 
 function formatPaymentMethod(value) {
