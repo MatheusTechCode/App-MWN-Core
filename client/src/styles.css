@@ -570,6 +570,192 @@ small {
   gap: var(--spacing-5);
 }
 
+.analytics-page {
+  display: grid;
+  gap: var(--spacing-5);
+}
+
+.analytics-empty {
+  padding: var(--spacing-5);
+}
+
+.page-heading {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-4);
+  justify-content: space-between;
+}
+
+.page-heading h1,
+.page-heading p,
+.analytics-panel h2 {
+  margin: 0;
+}
+
+.page-heading h1 {
+  font-size: var(--font-size-xl);
+}
+
+.page-heading p {
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-1);
+}
+
+.metric-grid {
+  display: grid;
+  gap: var(--spacing-4);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.metric-card,
+.analytics-panel {
+  background: var(--gradient-card);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+}
+
+.metric-card {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-4);
+}
+
+.metric-card span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.metric-card strong {
+  color: var(--color-primary-light);
+  font-size: 28px;
+  overflow-wrap: anywhere;
+}
+
+.analytics-grid {
+  display: grid;
+  gap: var(--spacing-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.analytics-panel {
+  display: grid;
+  gap: var(--spacing-4);
+  min-width: 0;
+  padding: var(--spacing-4);
+}
+
+.analytics-panel.analytics-wide {
+  grid-column: 1 / -1;
+}
+
+.sales-chart {
+  align-items: end;
+  display: grid;
+  gap: var(--spacing-3);
+  grid-template-columns: repeat(7, minmax(58px, 1fr));
+  min-height: 230px;
+  overflow-x: auto;
+}
+
+.chart-column {
+  align-items: center;
+  display: grid;
+  gap: var(--spacing-2);
+  grid-template-rows: 38px 150px 20px;
+  min-width: 58px;
+  text-align: center;
+}
+
+.chart-column > strong {
+  align-self: end;
+  font-size: var(--font-size-xs);
+}
+
+.chart-track {
+  align-items: end;
+  background: rgba(51, 65, 85, 0.52);
+  border-radius: var(--radius-sm);
+  display: flex;
+  height: 150px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.chart-track span {
+  background: var(--gradient-primary);
+  display: block;
+  min-height: 4px;
+  width: 100%;
+}
+
+.ranking-list,
+.summary-list,
+.sales-table {
+  display: grid;
+  gap: var(--spacing-2);
+}
+
+.ranking-row {
+  align-items: center;
+  border-bottom: 1px solid var(--color-border-soft);
+  display: grid;
+  gap: var(--spacing-3);
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  padding: var(--spacing-2) 0;
+}
+
+.ranking-row > div {
+  display: grid;
+  gap: var(--spacing-1);
+}
+
+.ranking-position {
+  align-items: center;
+  background: rgba(0, 140, 255, 0.18);
+  border-radius: 50%;
+  display: flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.ranking-track {
+  background: rgba(51, 65, 85, 0.62);
+  border-radius: var(--radius-pill);
+  height: 5px;
+  overflow: hidden;
+}
+
+.ranking-track span {
+  background: var(--color-primary-light);
+  display: block;
+  height: 100%;
+}
+
+.summary-row,
+.sales-table-row {
+  align-items: center;
+  border-bottom: 1px solid var(--color-border-soft);
+  display: grid;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) 0;
+}
+
+.summary-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.sales-table-row {
+  grid-template-columns: minmax(0, 1fr) minmax(130px, auto) auto;
+}
+
+.sales-table-row > div {
+  display: grid;
+  gap: var(--spacing-1);
+}
+
 .login-screen {
   align-items: center;
   background:
@@ -794,6 +980,8 @@ button.link-button:hover {
   .layout,
   .client-content,
   .admin-panels,
+  .analytics-grid,
+  .metric-grid,
   .operation-layout,
   .operation-grid,
   .kanban {
@@ -808,6 +996,10 @@ button.link-button:hover {
 
   .admin-nav {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .analytics-panel.analytics-wide {
+    grid-column: auto;
   }
 }
 
@@ -829,6 +1021,17 @@ button.link-button:hover {
   }
 
   .admin-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .page-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .summary-row,
+  .sales-table-row {
+    align-items: start;
     grid-template-columns: 1fr;
   }
 

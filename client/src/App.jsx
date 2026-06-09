@@ -1,4 +1,4 @@
-import { BookOpen, ClipboardList, CreditCard, Plus, ReceiptText, RefreshCcw, Settings, Table2, Users, Utensils } from 'lucide-react';
+import { BarChart3, BookOpen, ClipboardList, CreditCard, Plus, ReceiptText, RefreshCcw, Settings, Table2, Users, Utensils } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 
@@ -19,6 +19,7 @@ export function App() {
   const [garcons, setGarcons] = useState([]);
   const [cardapiosAdmin, setCardapiosAdmin] = useState([]);
   const [itensAdmin, setItensAdmin] = useState([]);
+  const [relatorioVendas, setRelatorioVendas] = useState(null);
   const [selectedComanda, setSelectedComanda] = useState(null);
   const [cart, setCart] = useState([]);
   const [nomeCliente, setNomeCliente] = useState('');
@@ -51,6 +52,7 @@ export function App() {
   const adminNavItems = [
     { id: 'pedidos', label: 'Pedidos', icon: ClipboardList, perfis: ['admin', 'garcom', 'cozinha'] },
     { id: 'comandas', label: 'Comandas', icon: CreditCard, perfis: ['admin', 'garcom'] },
+    { id: 'relatorios', label: 'Relatórios', icon: BarChart3, perfis: ['admin'] },
     { id: 'cardapios', label: 'Cardápios', icon: BookOpen, perfis: ['admin', 'garcom', 'cozinha'] },
     { id: 'mesas', label: 'Mesas', icon: Table2, perfis: ['admin'] },
     { id: 'garcons', label: 'Garçons', icon: Users, perfis: ['admin'] },
@@ -95,6 +97,7 @@ export function App() {
       garconsData,
       cardapiosAdminData,
       itensAdminData,
+      relatorioVendasData,
     ] = await Promise.all([
       api('/pedidos/operacao'),
       podeGerenciarComandas ? api('/comandas') : Promise.resolve([]),
@@ -103,6 +106,7 @@ export function App() {
       user.perfil === 'admin' ? api('/usuarios/garcons') : Promise.resolve([]),
       podeVisualizarCardapio ? api('/cardapios/admin') : Promise.resolve([]),
       podeVisualizarCardapio ? api('/cardapios/itens') : Promise.resolve([]),
+      user.perfil === 'admin' ? api('/relatorios/vendas') : Promise.resolve(null),
     ]);
     setOperacao(asArray(pedidosOperacao));
     setComandasOperacao(asArray(comandasAbertas));
@@ -113,6 +117,7 @@ export function App() {
     const adminCardapios = asArray(cardapiosAdminData);
     setCardapiosAdmin(adminCardapios);
     setItensAdmin(asArray(itensAdminData));
+    setRelatorioVendas(relatorioVendasData);
     setItemForm((current) => ({
       ...current,
       cardapioId: current.cardapioId || adminCardapios[0]?.id || '',
@@ -451,6 +456,7 @@ export function App() {
     setUser(null);
     setOperacao([]);
     setComandasOperacao([]);
+    setRelatorioVendas(null);
     setMessage('Sessão encerrada.');
   }
 
@@ -803,6 +809,10 @@ export function App() {
                   ))}
                     </aside>
                   </section>
+                ) : null}
+
+                {adminPage === 'relatorios' && user.perfil === 'admin' ? (
+                  <SalesDashboard data={relatorioVendas} onRefresh={loadOperacao} />
                 ) : null}
 
                 {user.perfil === 'admin' && ['configuracoes', 'garcons', 'mesas', 'cardapios'].includes(adminPage) ? (
@@ -1187,6 +1197,137 @@ export function App() {
   );
 }
 
+function SalesDashboard({ data, onRefresh }) {
+  if (!data) {
+    return (
+      <section className="analytics-empty">
+        <p className="muted">Carregando estatísticas de vendas...</p>
+      </section>
+    );
+  }
+
+  const maxDailySale = Math.max(...data.vendasUltimosSeteDias.map((day) => Number(day.total)), 1);
+  const maxItemQuantity = Math.max(...data.itensMaisVendidos.map((item) => Number(item.quantidade)), 1);
+
+  return (
+    <section className="analytics-page">
+      <header className="page-heading">
+        <div>
+          <h1>Estatísticas de vendas</h1>
+          <p>Resumo das vendas confirmadas e do desempenho diário.</p>
+        </div>
+        <button type="button" className="ghost" onClick={onRefresh}>
+          <RefreshCcw size={16} /> Atualizar
+        </button>
+      </header>
+
+      <div className="metric-grid">
+        <article className="metric-card">
+          <span>Vendas de hoje</span>
+          <strong>{formatMoney(data.resumo.totalVendas)}</strong>
+          <small>Pagamentos confirmados</small>
+        </article>
+        <article className="metric-card">
+          <span>Ticket médio</span>
+          <strong>{formatMoney(data.resumo.ticketMedio)}</strong>
+          <small>Por comanda fechada</small>
+        </article>
+        <article className="metric-card">
+          <span>Comandas fechadas</span>
+          <strong>{data.resumo.comandasFechadas}</strong>
+          <small>No dia de hoje</small>
+        </article>
+        <article className="metric-card">
+          <span>Itens vendidos</span>
+          <strong>{data.resumo.itensVendidos}</strong>
+          <small>Quantidade total no dia</small>
+        </article>
+      </div>
+
+      <div className="analytics-grid">
+        <section className="analytics-panel analytics-wide">
+          <h2>Vendas nos últimos 7 dias</h2>
+          <div className="sales-chart">
+            {data.vendasUltimosSeteDias.map((day) => (
+              <div className="chart-column" key={day.data}>
+                <strong>{formatMoney(day.total)}</strong>
+                <div className="chart-track">
+                  <span style={{ height: `${Math.max((Number(day.total) / maxDailySale) * 100, 3)}%` }} />
+                </div>
+                <small>{day.label}</small>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="analytics-panel">
+          <h2>Itens mais vendidos hoje</h2>
+          {data.itensMaisVendidos.length === 0 ? <p className="muted">Nenhum item vendido hoje.</p> : null}
+          <div className="ranking-list">
+            {data.itensMaisVendidos.map((item, index) => (
+              <div className="ranking-row" key={item.id}>
+                <span className="ranking-position">{index + 1}</span>
+                <div>
+                  <strong>{item.nome}</strong>
+                  <small>{item.categoria} · {item.quantidade} unidades</small>
+                  <div className="ranking-track">
+                    <span style={{ width: `${(Number(item.quantidade) / maxItemQuantity) * 100}%` }} />
+                  </div>
+                </div>
+                <strong>{formatMoney(item.total)}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="analytics-panel">
+          <h2>Mesas com maior venda</h2>
+          {data.mesasDestaque.length === 0 ? <p className="muted">Nenhuma mesa fechada hoje.</p> : null}
+          <div className="summary-list">
+            {data.mesasDestaque.map((table) => (
+              <div className="summary-row" key={table.mesa}>
+                <span>Mesa {table.mesa}</span>
+                <small>{table.comandas} {table.comandas === 1 ? 'comanda' : 'comandas'}</small>
+                <strong>{formatMoney(table.total)}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="analytics-panel">
+          <h2>Formas de pagamento</h2>
+          {data.formasPagamento.length === 0 ? <p className="muted">Nenhum pagamento confirmado hoje.</p> : null}
+          <div className="summary-list">
+            {data.formasPagamento.map((payment) => (
+              <div className="summary-row" key={payment.forma}>
+                <span>{formatPaymentMethod(payment.forma)}</span>
+                <strong>{formatMoney(payment.total)}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="analytics-panel analytics-wide">
+          <h2>Últimas vendas</h2>
+          {data.ultimasVendas.length === 0 ? <p className="muted">Ainda não há vendas registradas.</p> : null}
+          <div className="sales-table">
+            {data.ultimasVendas.map((sale) => (
+              <div className="sales-table-row" key={sale.id}>
+                <div>
+                  <strong>Mesa {sale.mesa} · {sale.cliente}</strong>
+                  <small>{formatDateTime(sale.criadoEm)}</small>
+                </div>
+                <span>{formatPaymentMethod(sale.formaPagamento)}</span>
+                <strong>{formatMoney(sale.valor)}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
 function PaymentCard({ cardapio, comanda, mesas, user, onCreateOrder, onPay, onTransfer }) {
   const [formaPagamento, setFormaPagamento] = useState('pix');
   const [mesaDestinoId, setMesaDestinoId] = useState('');
@@ -1386,6 +1527,24 @@ function canEditOrder(pedido, user) {
 
 function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+}
+
+function formatDateTime(value) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+function formatPaymentMethod(value) {
+  const labels = {
+    cartao_credito: 'Cartão de crédito',
+    cartao_debito: 'Cartão de débito',
+    dinheiro: 'Dinheiro',
+    pix: 'Pix',
+  };
+
+  return labels[value] || value || 'Não informado';
 }
 
 function slug(value) {
