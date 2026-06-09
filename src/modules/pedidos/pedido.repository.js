@@ -36,7 +36,7 @@ export async function listPedidosByMesaToken(mesaToken) {
     [mesaToken],
   );
 
-  return groupPedidos(result.rows);
+  return attachStatusTimings(groupPedidos(result.rows));
 }
 
 export async function listPedidosOperacao() {
@@ -53,7 +53,7 @@ export async function listPedidosOperacao() {
      order by p.criado_em, p.id, ip.id`,
   );
 
-  return groupPedidos(result.rows);
+  return attachStatusTimings(groupPedidos(result.rows));
 }
 
 export async function createPedido({ comandaId, itens, observacao, criadoPor }) {
@@ -254,4 +254,66 @@ function groupPedidos(rows) {
   }
 
   return Array.from(pedidos.values());
+}
+
+async function attachStatusTimings(pedidos) {
+  if (pedidos.length === 0) {
+    return pedidos;
+  }
+
+  const placeholders = pedidos.map((_, index) => `$${index + 1}`).join(', ');
+  const historyResult = await query(
+    `select pedido_id, status, alterado_por, criado_em
+     from historico_status_pedido
+     where pedido_id in (${placeholders})
+     order by pedido_id, criado_em, id`,
+    pedidos.map((pedido) => pedido.id),
+  );
+  const historyByOrder = new Map();
+
+  for (const entry of historyResult.rows) {
+    const current = historyByOrder.get(Number(entry.pedido_id)) || [];
+    current.push(entry);
+    historyByOrder.set(Number(entry.pedido_id), current);
+  }
+
+  const now = Date.now();
+
+  return pedidos.map((pedido) => {
+    const history = historyByOrder.get(Number(pedido.id)) || [];
+    const statusTimes = history.map((entry, index) => {
+      const startedAt = parseDatabaseDate(entry.criado_em);
+      const nextEntry = history[index + 1];
+      const finishedAt = nextEntry ? parseDatabaseDate(nextEntry.criado_em) : null;
+      const durationEnd = finishedAt?.getTime() || now;
+
+      return {
+        status: entry.status,
+        alteradoPor: entry.alterado_por,
+        iniciadoEm: startedAt.toISOString(),
+        finalizadoEm: finishedAt?.toISOString() || null,
+        duracaoSegundos: Math.max(0, Math.floor((durationEnd - startedAt.getTime()) / 1000)),
+      };
+    });
+    const currentStatus = [...statusTimes].reverse().find((entry) => entry.status === pedido.status);
+
+    return {
+      ...pedido,
+      status_desde: currentStatus?.iniciadoEm || pedido.atualizado_em || pedido.criado_em,
+      tempo_status_atual_segundos: currentStatus?.duracaoSegundos || 0,
+      tempos_status: statusTimes,
+    };
+  });
+}
+
+function parseDatabaseDate(value) {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const normalized = typeof value === 'string' && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(value)
+    ? `${value.replace(' ', 'T')}Z`
+    : value;
+
+  return new Date(normalized);
 }
