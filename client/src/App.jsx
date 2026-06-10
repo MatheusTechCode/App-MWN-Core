@@ -1,5 +1,5 @@
-import { BarChart3, BookOpen, ClipboardList, CreditCard, Plus, ReceiptText, RefreshCcw, Settings, Table2, Users, Utensils } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import { BarChart3, BookOpen, Check, ClipboardList, Clock3, CreditCard, ImagePlus, Minus, Plus, ReceiptText, RefreshCcw, Search, Settings, ShoppingCart, Table2, Trash2, Users, Utensils, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 
 const fallbackMesaToken = new URLSearchParams(window.location.search).get('mesa') || 'mwn_qr_a8F3kP7xQ2L9';
@@ -22,6 +22,13 @@ export function App() {
   const [relatorioVendas, setRelatorioVendas] = useState(null);
   const [selectedComanda, setSelectedComanda] = useState(null);
   const [cart, setCart] = useState([]);
+  const [menuSearch, setMenuSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const [showMobileCart, setShowMobileCart] = useState(false);
+  const [productDetails, setProductDetails] = useState(null);
+  const [cartFeedback, setCartFeedback] = useState(null);
+  const cartFeedbackTimer = useRef(null);
+  const cartFeedbackSequence = useRef(0);
   const [nomeCliente, setNomeCliente] = useState('');
   const [novaComandaOperacao, setNovaComandaOperacao] = useState({ mesaToken: '', nomeCliente: '' });
   const [login, setLogin] = useState({ login: '', senha: '' });
@@ -35,6 +42,7 @@ export function App() {
     id: null,
     nome: '',
     descricao: '',
+    imagem: '',
     preco: '',
     categoria: '',
     disponivel: true,
@@ -152,23 +160,114 @@ export function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  useEffect(() => () => clearTimeout(cartFeedbackTimer.current), []);
+
+  useEffect(() => {
+    if (!productDetails) return undefined;
+
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') {
+        setProductDetails(null);
+      }
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [productDetails]);
+
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + Number(item.preco) * item.quantidade, 0),
     [cart],
   );
+  const cartItemCount = useMemo(
+    () => cart.reduce((sum, item) => sum + Number(item.quantidade), 0),
+    [cart],
+  );
+  const menuCategories = useMemo(
+    () => ['Todos', ...cardapio.map((grupo) => grupo.categoria)],
+    [cardapio],
+  );
+  const filteredMenu = useMemo(() => {
+    const search = normalizeText(menuSearch);
+
+    return cardapio
+      .filter((grupo) => selectedCategory === 'Todos' || grupo.categoria === selectedCategory)
+      .map((grupo) => ({
+        ...grupo,
+        itens: grupo.itens.filter((item) =>
+          normalizeText(`${item.nome} ${item.descricao || ''}`).includes(search),
+        ),
+      }))
+      .filter((grupo) => grupo.itens.length > 0);
+  }, [cardapio, menuSearch, selectedCategory]);
   const comandaAtual = comandas.find((comanda) => Number(comanda.id) === Number(selectedComanda));
 
-  function addToCart(item) {
+  function addToCart(item, quantity = 1, observation = '') {
+    const normalizedObservation = observation.trim();
+
     setCart((current) => {
-      const existing = current.find((entry) => entry.itemCardapioId === item.id);
+      const existing = current.find(
+        (entry) =>
+          entry.itemCardapioId === item.id &&
+          (entry.observacao || '') === normalizedObservation,
+      );
+
       if (existing) {
         return current.map((entry) =>
-          entry.itemCardapioId === item.id ? { ...entry, quantidade: entry.quantidade + 1 } : entry,
+          entry.cartKey === existing.cartKey
+            ? { ...entry, quantidade: entry.quantidade + quantity }
+            : entry,
         );
       }
 
-      return [...current, { itemCardapioId: item.id, nome: item.nome, preco: item.preco, quantidade: 1 }];
+      return [
+        ...current,
+        {
+          cartKey: `${item.id}-${Date.now()}`,
+          itemCardapioId: item.id,
+          nome: item.nome,
+          preco: item.preco,
+          quantidade: quantity,
+          observacao: normalizedObservation || undefined,
+        },
+      ];
     });
+
+    clearTimeout(cartFeedbackTimer.current);
+    cartFeedbackSequence.current += 1;
+    setCartFeedback({
+      itemId: item.id,
+      itemName: item.nome,
+      sequence: cartFeedbackSequence.current,
+    });
+    cartFeedbackTimer.current = setTimeout(() => setCartFeedback(null), 900);
+  }
+
+  function openProductDetails(item) {
+    setProductDetails({ item, quantidade: 1, observacao: '' });
+  }
+
+  function confirmProductDetails() {
+    if (!productDetails) return;
+
+    addToCart(
+      productDetails.item,
+      Number(productDetails.quantidade),
+      productDetails.observacao,
+    );
+    setProductDetails(null);
+  }
+
+  function changeCartQuantity(cartKey, delta) {
+    setCart((current) =>
+      current
+        .map((item) =>
+          item.cartKey === cartKey
+            ? { ...item, quantidade: item.quantidade + delta }
+            : item,
+        )
+        .filter((item) => item.quantidade > 0),
+    );
   }
 
   async function createComanda(event) {
@@ -196,6 +295,7 @@ export function App() {
       body: JSON.stringify({ comandaId: selectedComanda, mesaToken, itens: cart }),
     });
     setCart([]);
+    setShowMobileCart(false);
     setMessage('Pedido enviado para a cozinha.');
     setOrderConfirmation({
       title: 'Pedido enviado',
@@ -431,9 +531,23 @@ export function App() {
       body: JSON.stringify(itemForm),
     });
 
-    setItemForm({ id: null, nome: '', descricao: '', preco: '', categoria: '', disponivel: true, cardapioId: itemForm.cardapioId });
+    setItemForm({ id: null, nome: '', descricao: '', imagem: '', preco: '', categoria: '', disponivel: true, cardapioId: itemForm.cardapioId });
     setMessage('Item de cardápio salvo com sucesso.');
     await loadOperacao();
+  }
+
+  async function selectItemImage(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+
+    try {
+      const imagem = await optimizeMenuImage(file);
+      setItemForm((current) => ({ ...current, imagem }));
+    } catch (error) {
+      setMessage(error.message);
+    }
   }
 
   async function deleteItemCardapio(item) {
@@ -471,7 +585,7 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${isClientRoute ? 'client-mode' : ''} ${isClientRoute && clientScreen === 'cardapio' ? 'menu-mode' : ''}`}>
       {!isLoginRoute ? (
         <header className="topbar">
           <div>
@@ -552,72 +666,285 @@ export function App() {
           ) : null}
 
           {clientScreen === 'cardapio' ? (
-            <section className="client-content">
-              <div className="menu-area">
-                {cardapio.map((grupo) => (
-                  <div key={grupo.categoria} className="menu-group">
-                    <h2>{grupo.categoria}</h2>
-                    <div className="grid">
-                      {grupo.itens.map((item) => (
-                        <article className="item-card" key={item.id}>
-                          <div>
-                            <h3>{item.nome}</h3>
-                            <p>{item.descricao}</p>
-                            <strong>{formatMoney(item.preco)}</strong>
-                          </div>
-                          <button type="button" aria-label={`Adicionar ${item.nome}`} onClick={() => addToCart(item)}>
-                            <Plus size={18} />
-                          </button>
-                        </article>
-                      ))}
-                    </div>
+            <section className="client-menu-screen">
+              <div className="menu-browser">
+                <header className="menu-toolbar">
+                  <div className="menu-title-row">
+                    <h1>Cardápio</h1>
+                    <span className="menu-table-badge">Mesa {mesa?.numero || '--'}</span>
                   </div>
-                ))}
+
+                  <label className="menu-search">
+                    <Search size={18} />
+                    <input
+                      aria-label="Buscar item no cardápio"
+                      placeholder="Buscar item..."
+                      value={menuSearch}
+                      onChange={(event) => setMenuSearch(event.target.value)}
+                    />
+                  </label>
+
+                  <div className="category-tabs" role="tablist" aria-label="Categorias do cardápio">
+                    {menuCategories.map((category) => (
+                      <button
+                        key={category}
+                        className={selectedCategory === category ? 'active' : ''}
+                        role="tab"
+                        type="button"
+                        aria-selected={selectedCategory === category}
+                        onClick={() => setSelectedCategory(category)}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </header>
+
+                <div className="menu-scroll">
+                  {filteredMenu.length === 0 ? (
+                    <div className="menu-empty">
+                      <Search size={24} />
+                      <p>Nenhum item encontrado.</p>
+                    </div>
+                  ) : null}
+                  {filteredMenu.map((grupo) => (
+                    <section key={grupo.categoria} className="menu-group">
+                      {selectedCategory === 'Todos' ? <h2>{grupo.categoria}</h2> : null}
+                      <div className="menu-list">
+                        {grupo.itens.map((item) => {
+                          const wasAdded = cartFeedback?.itemId === item.id;
+
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              className={`menu-item-card ${wasAdded ? 'item-added' : ''}`}
+                              aria-label={`Ver detalhes de ${item.nome}`}
+                              onClick={() => openProductDetails(item)}
+                            >
+                              <div className={`menu-item-media ${item.imagem ? 'has-image' : ''}`} aria-hidden="true">
+                                {item.imagem ? (
+                                  <img src={item.imagem} alt="" />
+                                ) : (
+                                  <Utensils size={24} />
+                                )}
+                              </div>
+                              <div className="menu-item-copy">
+                                <h3>{item.nome}</h3>
+                                <p>{item.descricao}</p>
+                                <strong>{formatMoney(item.preco)}</strong>
+                              </div>
+                              <span
+                                key={wasAdded ? cartFeedback.sequence : 'idle'}
+                                className={`menu-add-button ${wasAdded ? 'added' : ''}`}
+                                aria-hidden="true"
+                              >
+                                {wasAdded ? <Check size={19} /> : <Plus size={19} />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
               </div>
 
-              <aside className="panel cart-panel">
-                <h2><ReceiptText size={20} /> Pedido</h2>
-                {cart.length === 0 ? <p className="muted">Carrinho vazio.</p> : null}
-                {cart.map((item) => (
-                  <div className="cart-row" key={item.itemCardapioId}>
-                    <span>{item.quantidade}x {item.nome}</span>
-                    <strong>{formatMoney(Number(item.preco) * item.quantidade)}</strong>
-                  </div>
-                ))}
-                <div className="total">
-                  <span>Total</span>
-                  <strong>{formatMoney(total)}</strong>
+              <aside className={`menu-cart ${showMobileCart ? 'open' : ''} ${cartFeedback ? 'cart-updated' : ''}`}>
+                <header>
+                  <h2><ShoppingCart size={20} /> Seu pedido</h2>
+                  <button
+                    type="button"
+                    className="cart-close"
+                    aria-label="Fechar carrinho"
+                    onClick={() => setShowMobileCart(false)}
+                  >
+                    <X size={20} />
+                  </button>
+                </header>
+                <div className="menu-cart-items">
+                  {cart.length === 0 ? <p className="muted">Seu carrinho está vazio.</p> : null}
+                  {cart.map((item) => (
+                    <div className="menu-cart-row" key={item.cartKey}>
+                      <div>
+                        <strong>{item.nome}</strong>
+                        <small>{formatMoney(Number(item.preco) * item.quantidade)}</small>
+                        {item.observacao ? <small>{item.observacao}</small> : null}
+                      </div>
+                      <div className="quantity-control">
+                        <button
+                          type="button"
+                          aria-label={`Remover uma unidade de ${item.nome}`}
+                          onClick={() => changeCartQuantity(item.cartKey, -1)}
+                        >
+                          <Minus size={15} />
+                        </button>
+                        <span>{item.quantidade}</span>
+                        <button
+                          type="button"
+                          aria-label={`Adicionar uma unidade de ${item.nome}`}
+                          onClick={() => changeCartQuantity(item.cartKey, 1)}
+                        >
+                          <Plus size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <button type="button" onClick={createPedido}>Enviar pedido</button>
+                <footer>
+                  <div className="total">
+                    <span>Total</span>
+                    <strong>{formatMoney(total)}</strong>
+                  </div>
+                  <button type="button" disabled={cart.length === 0} onClick={createPedido}>
+                    Enviar pedido
+                  </button>
+                </footer>
               </aside>
+
+              <button
+                key={cartFeedback?.sequence || 'idle'}
+                type="button"
+                className={`mobile-cart-bar ${cartFeedback ? 'cart-updated' : ''}`}
+                onClick={() => setShowMobileCart(true)}
+              >
+                <ShoppingCart size={19} />
+                <span>Ver carrinho ({cartItemCount})</span>
+                <strong>{formatMoney(total)}</strong>
+              </button>
+              <span className="sr-only" aria-live="polite">
+                {cartFeedback ? `${cartFeedback.itemName} adicionado ao pedido.` : ''}
+              </span>
+
+              {productDetails ? (
+                <div className="product-modal-backdrop" role="presentation">
+                  <section
+                    className="product-modal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="product-detail-title"
+                  >
+                    <div className={`product-hero ${productDetails.item.imagem ? 'has-image' : ''}`}>
+                      {productDetails.item.imagem ? (
+                        <img src={productDetails.item.imagem} alt={productDetails.item.nome} />
+                      ) : (
+                        <Utensils size={48} aria-hidden="true" />
+                      )}
+                      <button
+                        type="button"
+                        className="product-close"
+                        aria-label="Fechar detalhes do produto"
+                        onClick={() => setProductDetails(null)}
+                      >
+                        <X size={22} />
+                      </button>
+                    </div>
+
+                    <div className="product-detail-scroll">
+                      <header className="product-detail-header">
+                        <div>
+                          <span>{productDetails.item.categoria}</span>
+                          <h2 id="product-detail-title">{productDetails.item.nome}</h2>
+                        </div>
+                        <strong>{formatMoney(productDetails.item.preco)}</strong>
+                      </header>
+
+                      {productDetails.item.descricao ? (
+                        <p className="product-description">{productDetails.item.descricao}</p>
+                      ) : null}
+
+                      <section className="product-option-section">
+                        <div>
+                          <h3>Quantidade</h3>
+                          <p>Escolha quantas unidades deseja adicionar.</p>
+                        </div>
+                        <div className="product-quantity">
+                          <button
+                            type="button"
+                            aria-label="Diminuir quantidade"
+                            disabled={productDetails.quantidade <= 1}
+                            onClick={() =>
+                              setProductDetails((current) => ({
+                                ...current,
+                                quantidade: current.quantidade - 1,
+                              }))}
+                          >
+                            <Minus size={18} />
+                          </button>
+                          <strong>{productDetails.quantidade}</strong>
+                          <button
+                            type="button"
+                            aria-label="Aumentar quantidade"
+                            onClick={() =>
+                              setProductDetails((current) => ({
+                                ...current,
+                                quantidade: current.quantidade + 1,
+                              }))}
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                      </section>
+
+                      <label className="product-observation">
+                        Observações
+                        <textarea
+                          maxLength="240"
+                          placeholder="Ex: sem cebola, ponto da carne..."
+                          value={productDetails.observacao}
+                          onChange={(event) =>
+                            setProductDetails((current) => ({
+                              ...current,
+                              observacao: event.target.value,
+                            }))}
+                        />
+                        <small>{productDetails.observacao.length}/240</small>
+                      </label>
+                    </div>
+
+                    <footer className="product-modal-footer">
+                      <button type="button" onClick={confirmProductDetails}>
+                        Adicionar ao pedido
+                        <strong>
+                          {formatMoney(
+                            Number(productDetails.item.preco) *
+                              Number(productDetails.quantidade),
+                          )}
+                        </strong>
+                      </button>
+                    </footer>
+                  </section>
+                </div>
+              ) : null}
             </section>
           ) : null}
 
           {clientScreen === 'pedidos' ? (
-            <section className="client-content narrow">
-              <div className="panel">
-                <h2><ClipboardList size={20} /> Status dos pedidos</h2>
+            <section className="client-orders-page">
+              <header className="orders-page-header">
+                <div>
+                  <h1>Acompanhar pedidos</h1>
+                  <span>Mesa {mesa?.numero || '--'}</span>
+                </div>
                 <button type="button" className="ghost" onClick={loadCliente}>
                   <RefreshCcw size={16} /> Atualizar
                 </button>
-                {pedidos.length === 0 ? <p className="muted">Nenhum pedido enviado nesta mesa.</p> : null}
+              </header>
+
+              {pedidos.length === 0 ? (
+                <div className="orders-empty">
+                  <ClipboardList size={30} />
+                  <p>Nenhum pedido enviado nesta mesa.</p>
+                </div>
+              ) : null}
+
+              <div className="client-orders-list">
                 {pedidos.map((pedido) => (
-                  <article className="order-card" key={pedido.id}>
-                    <strong>Pedido #{pedido.id}</strong>
-                    <span className={`status ${slug(pedido.status)}`}>{pedido.status}</span>
-                    <small>Há {formatDuration(pedido.tempo_status_atual_segundos)} neste status</small>
-                    <small>{pedido.itens.map((item) => `${item.quantidade}x ${item.nome}`).join(', ')}</small>
-                    {pedido.status === 'Na fila' ? (
-                      <button type="button" className="ghost" onClick={() => setEditingOrder({ pedido, mode: 'cliente' })}>
-                        Editar pedido
-                      </button>
-                    ) : null}
-                    {pedido.status === 'Na fila' ? (
-                      <button type="button" className="ghost" onClick={() => deletePedidoCliente(pedido.id)}>
-                        Excluir pedido
-                      </button>
-                    ) : null}
-                  </article>
+                  <ClientOrderStatus
+                    key={pedido.id}
+                    pedido={pedido}
+                    onEdit={() => setEditingOrder({ pedido, mode: 'cliente' })}
+                  />
                 ))}
               </div>
             </section>
@@ -755,11 +1082,6 @@ export function App() {
                         {canEditOrder(pedido, user) ? (
                           <button type="button" className="ghost" onClick={() => setEditingOrder({ pedido, mode: 'operacao' })}>
                             Editar pedido
-                          </button>
-                        ) : null}
-                        {canEditOrder(pedido, user) ? (
-                          <button type="button" className="ghost" onClick={() => deletePedidoOperacao(pedido.id)}>
-                            Excluir pedido
                           </button>
                         ) : null}
                         <StatusActions pedido={pedido} user={user} onChange={changeStatus} />
@@ -1013,6 +1335,29 @@ export function App() {
                         value={itemForm.descricao}
                         onChange={(event) => setItemForm({ ...itemForm, descricao: event.target.value })}
                       />
+                      <div className="item-image-field">
+                        <label className="image-picker">
+                          <ImagePlus size={18} />
+                          {itemForm.imagem ? 'Trocar foto' : 'Adicionar foto'}
+                          <input
+                            accept="image/jpeg,image/png,image/webp"
+                            type="file"
+                            onChange={selectItemImage}
+                          />
+                        </label>
+                        {itemForm.imagem ? (
+                          <div className="item-image-preview">
+                            <img src={itemForm.imagem} alt="Prévia do item" />
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => setItemForm({ ...itemForm, imagem: '' })}
+                            >
+                              <Trash2 size={17} /> Remover foto
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                       <input
                         inputMode="decimal"
                         min="0"
@@ -1056,7 +1401,7 @@ export function App() {
                         <button
                           type="button"
                           className="ghost"
-                          onClick={() => setItemForm({ id: null, nome: '', descricao: '', preco: '', categoria: '', disponivel: true, cardapioId: itemForm.cardapioId })}
+                          onClick={() => setItemForm({ id: null, nome: '', descricao: '', imagem: '', preco: '', categoria: '', disponivel: true, cardapioId: itemForm.cardapioId })}
                         >
                           Cancelar edição
                         </button>
@@ -1066,6 +1411,7 @@ export function App() {
                     <div className="items-admin-grid">
                       {itensAdmin.map((item) => (
                         <article className="staff-card" key={item.id}>
+                          {item.imagem ? <img className="staff-item-image" src={item.imagem} alt="" /> : null}
                           <div>
                             <strong>{item.nome}</strong>
                             <small>{item.categoria} · {formatMoney(item.preco)}</small>
@@ -1176,13 +1522,20 @@ export function App() {
       ) : null}
 
       {editingOrder ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="order-edit-title">
-            <h2 id="order-edit-title">Editar pedido #{editingOrder.pedido.id}</h2>
+        <div className="modal-backdrop order-edit-backdrop" role="presentation">
+          <section className="order-edit-modal" role="dialog" aria-modal="true" aria-labelledby="order-edit-title">
             <OrderEditForm
               cardapio={cardapio}
               pedido={editingOrder.pedido}
               onCancel={() => setEditingOrder(null)}
+              onDelete={async (pedidoId) => {
+                if (editingOrder.mode === 'cliente') {
+                  await deletePedidoCliente(pedidoId);
+                } else {
+                  await deletePedidoOperacao(pedidoId);
+                }
+                setEditingOrder(null);
+              }}
               onSave={async (pedidoId, itens) => {
                 if (editingOrder.mode === 'cliente') {
                   await updatePedidoCliente(pedidoId, itens);
@@ -1196,6 +1549,90 @@ export function App() {
         </div>
       ) : null}
     </main>
+  );
+}
+
+function ClientOrderStatus({ pedido, onEdit }) {
+  const stages = [
+    { status: 'Na fila', label: 'Pedido recebido' },
+    { status: 'Em preparo', label: 'Em preparo' },
+    { status: 'Pronto', label: 'Pronto' },
+    { status: 'Entregue', label: 'Entregue na mesa' },
+  ];
+  const currentIndex = stages.findIndex((stage) => stage.status === pedido.status);
+  const orderTotal = pedido.itens.reduce(
+    (sum, item) => sum + Number(item.precoUnitario || 0) * Number(item.quantidade),
+    0,
+  );
+  const firstStatus = pedido.tempos_status?.[0];
+  const totalElapsed = firstStatus
+    ? Math.max(0, Math.floor((Date.now() - new Date(firstStatus.iniciadoEm).getTime()) / 1000))
+    : pedido.tempo_status_atual_segundos;
+
+  return (
+    <article className="client-order-status">
+      <header className="client-order-header">
+        <div>
+          <h2>Pedido #{String(pedido.id).padStart(3, '0')}</h2>
+          <span>{pedido.nome_cliente}</span>
+        </div>
+        <span className={`status ${slug(pedido.status)}`}>{pedido.status}</span>
+      </header>
+
+      <div className="order-time-summary">
+        <Clock3 size={18} />
+        <span>Em andamento há {formatDuration(totalElapsed)}</span>
+      </div>
+
+      <div className="order-timeline">
+        {stages.map((stage, index) => {
+          const history = pedido.tempos_status?.find((entry) => entry.status === stage.status);
+          const completed = index < currentIndex;
+          const current = index === currentIndex;
+
+          return (
+            <div
+              className={`timeline-step ${completed ? 'completed' : ''} ${current ? 'current' : ''}`}
+              key={stage.status}
+            >
+              <div className="timeline-marker" aria-hidden="true">
+                {completed ? <Check size={14} /> : null}
+              </div>
+              <div>
+                <strong>{stage.label}</strong>
+                <small>
+                  {history
+                    ? formatStatusTime(history.iniciadoEm)
+                    : current
+                      ? 'Aguardando...'
+                      : '—'}
+                </small>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <section className="order-items-summary">
+        <h3>Itens do pedido</h3>
+        {pedido.itens.map((item, index) => (
+          <div key={`${pedido.id}-${item.itemCardapioId}-${index}`}>
+            <span>{item.quantidade}× {item.nome}</span>
+            <strong>{formatMoney(Number(item.precoUnitario || 0) * Number(item.quantidade))}</strong>
+          </div>
+        ))}
+        <div className="order-items-total">
+          <span>Total</span>
+          <strong>{formatMoney(orderTotal)}</strong>
+        </div>
+      </section>
+
+      {pedido.status === 'Na fila' ? (
+        <button type="button" className="ghost order-status-edit" onClick={onEdit}>
+          Editar pedido
+        </button>
+      ) : null}
+    </article>
   );
 }
 
@@ -1424,7 +1861,7 @@ function PaymentCard({ cardapio, comanda, mesas, user, onCreateOrder, onPay, onT
   );
 }
 
-function OrderEditForm({ cardapio, pedido, onCancel, onSave }) {
+function OrderEditForm({ cardapio, pedido, onCancel, onDelete, onSave }) {
   const itensCardapio = cardapio.flatMap((grupo) => grupo.itens);
   const firstItemId = itensCardapio[0]?.id || '';
   const [itens, setItens] = useState(
@@ -1435,6 +1872,12 @@ function OrderEditForm({ cardapio, pedido, onCancel, onSave }) {
         }))
       : [{ itemCardapioId: firstItemId, quantidade: 1 }],
   );
+  const orderTotal = itens.reduce((sum, item) => {
+    const cardapioItem = itensCardapio.find(
+      (entry) => Number(entry.id) === Number(item.itemCardapioId),
+    );
+    return sum + Number(cardapioItem?.preco || 0) * Number(item.quantidade);
+  }, 0);
 
   function updateItem(index, field, value) {
     setItens((current) =>
@@ -1460,44 +1903,122 @@ function OrderEditForm({ cardapio, pedido, onCancel, onSave }) {
         );
       }}
     >
-      <strong>Editar pedido</strong>
-      {itens.map((item, index) => (
-        <div className="edit-row" key={`${pedido.id}-${index}`}>
-          <select
-            value={item.itemCardapioId}
-            onChange={(event) => updateItem(index, 'itemCardapioId', event.target.value)}
-          >
-            {itensCardapio.map((cardapioItem) => (
-              <option key={cardapioItem.id} value={cardapioItem.id}>
-                {cardapioItem.nome}
-              </option>
-            ))}
-          </select>
-          <input
-            min="1"
-            type="number"
-            value={item.quantidade}
-            onChange={(event) => updateItem(index, 'quantidade', event.target.value)}
-          />
-          <button type="button" className="ghost" disabled={itens.length === 1} onClick={() => removeItem(index)}>
-            Remover
-          </button>
+      <header className="order-edit-header">
+        <div>
+          <h2 id="order-edit-title">Editar pedido #{pedido.id}</h2>
+          <span>{pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : pedido.nome_cliente}</span>
         </div>
-      ))}
-      <button
-        type="button"
-        className="ghost"
-        disabled={!firstItemId}
-        onClick={() => setItens((current) => [...current, { itemCardapioId: firstItemId, quantidade: 1 }])}
-      >
-        Adicionar item
-      </button>
-      <button type="submit" disabled={itens.some((item) => !item.itemCardapioId || Number(item.quantidade) < 1)}>
-        Salvar edição
-      </button>
-      <button type="button" className="ghost" onClick={onCancel}>
-        Cancelar
-      </button>
+        <button type="button" className="order-edit-close" aria-label="Fechar edição" onClick={onCancel}>
+          <X size={21} />
+        </button>
+      </header>
+
+      <div className="order-edit-scroll">
+        <div className="order-edit-items">
+          {itens.map((item, index) => {
+            const cardapioItem = itensCardapio.find(
+              (entry) => Number(entry.id) === Number(item.itemCardapioId),
+            );
+
+            return (
+              <article className="order-edit-item" key={`${pedido.id}-${index}`}>
+                <div className={`order-edit-image ${cardapioItem?.imagem ? 'has-image' : ''}`}>
+                  {cardapioItem?.imagem ? (
+                    <img src={cardapioItem.imagem} alt="" />
+                  ) : (
+                    <Utensils size={24} />
+                  )}
+                </div>
+                <div className="order-edit-item-content">
+                  <select
+                    aria-label={`Item ${index + 1}`}
+                    value={item.itemCardapioId}
+                    onChange={(event) => updateItem(index, 'itemCardapioId', event.target.value)}
+                  >
+                    {itensCardapio.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.nome}
+                      </option>
+                    ))}
+                  </select>
+                  <strong>{formatMoney(Number(cardapioItem?.preco || 0) * Number(item.quantidade))}</strong>
+                  <div className="order-edit-item-actions">
+                    <div className="quantity-control">
+                      <button
+                        type="button"
+                        aria-label="Diminuir quantidade"
+                        disabled={Number(item.quantidade) <= 1}
+                        onClick={() => updateItem(index, 'quantidade', Number(item.quantidade) - 1)}
+                      >
+                        <Minus size={15} />
+                      </button>
+                      <span>{item.quantidade}</span>
+                      <button
+                        type="button"
+                        aria-label="Aumentar quantidade"
+                        onClick={() => updateItem(index, 'quantidade', Number(item.quantidade) + 1)}
+                      >
+                        <Plus size={15} />
+                      </button>
+                    </div>
+                    <button type="button" className="order-item-remove" onClick={() => removeItem(index)}>
+                      <Trash2 size={16} /> Remover
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          className="ghost order-add-item"
+          disabled={!firstItemId}
+          onClick={() => setItens((current) => [...current, { itemCardapioId: firstItemId, quantidade: 1 }])}
+        >
+          <Plus size={17} /> Adicionar outro item
+        </button>
+
+        <div className="order-edit-summary">
+          <div>
+            <span>Itens</span>
+            <strong>{itens.reduce((sum, item) => sum + Number(item.quantidade), 0)}</strong>
+          </div>
+          <div className="order-edit-total">
+            <span>Total</span>
+            <strong>{formatMoney(orderTotal)}</strong>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="danger-button order-delete-button"
+          onClick={() => {
+            if (window.confirm(`Excluir o pedido #${pedido.id}? Esta ação não pode ser desfeita.`)) {
+              onDelete(pedido.id);
+            }
+          }}
+        >
+          <Trash2 size={18} /> Excluir pedido
+        </button>
+      </div>
+
+      <footer className="order-edit-footer">
+        <button
+          type="submit"
+          disabled={
+            itens.length === 0 ||
+            itens.some((item) => !item.itemCardapioId || Number(item.quantidade) < 1)
+          }
+        >
+          Salvar alterações
+          <strong>{formatMoney(orderTotal)}</strong>
+        </button>
+        <button type="button" className="link-button" onClick={onCancel}>
+          Voltar sem salvar
+        </button>
+      </footer>
     </form>
   );
 }
@@ -1538,6 +2059,13 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function formatStatusTime(value) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
 function formatDuration(totalSeconds) {
   const seconds = Math.max(0, Number(totalSeconds) || 0);
   const hours = Math.floor(seconds / 3600);
@@ -1563,6 +2091,60 @@ function formatPaymentMethod(value) {
   };
 
   return labels[value] || value || 'Não informado';
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+async function optimizeMenuImage(file) {
+  const supportedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+  if (!supportedTypes.includes(file.type)) {
+    throw new Error('Selecione uma imagem JPG, PNG ou WebP.');
+  }
+
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error('A imagem original deve ter no máximo 8 MB.');
+  }
+
+  const source = await readFileAsDataUrl(file);
+  const image = await loadImage(source);
+  const maxDimension = 1200;
+  const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+  const optimized = canvas.toDataURL('image/webp', 0.82);
+
+  if (optimized.length > 2_500_000) {
+    throw new Error('Não foi possível reduzir a foto. Escolha uma imagem menor.');
+  }
+
+  return optimized;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Não foi possível ler a imagem.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('O arquivo selecionado não é uma imagem válida.'));
+    image.src = source;
+  });
 }
 
 function slug(value) {

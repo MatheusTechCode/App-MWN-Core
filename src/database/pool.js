@@ -47,6 +47,10 @@ function createSqlitePool(DatabaseSync) {
   database.exec('PRAGMA foreign_keys = ON');
   database.exec(fs.readFileSync('database/sqlite-schema.sql', 'utf8'));
   database.exec(fs.readFileSync('database/sqlite-seed.sql', 'utf8'));
+  const itemColumns = database.prepare('pragma table_info(itens_cardapio)').all();
+  if (!itemColumns.some((column) => column.name === 'imagem')) {
+    database.exec('alter table itens_cardapio add column imagem text');
+  }
 
   async function sqliteQuery(text, params = []) {
     const { sql, values } = toSqliteQuery(text, params);
@@ -81,10 +85,16 @@ function createSqlitePool(DatabaseSync) {
 
 const sqliteModule = env.databaseClient === 'sqlite' ? await import('node:sqlite') : null;
 
-export const pool =
+const databasePool =
   env.databaseClient === 'sqlite'
     ? createSqlitePool(sqliteModule.DatabaseSync)
     : createPostgresPool();
+
+if (env.databaseClient === 'postgres') {
+  await databasePool.query('alter table itens_cardapio add column if not exists imagem text');
+}
+
+export const pool = databasePool;
 
 export async function query(text, params) {
   const result = await pool.query(text, params);

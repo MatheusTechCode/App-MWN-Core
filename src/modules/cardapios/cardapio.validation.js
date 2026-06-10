@@ -18,4 +18,15 @@ export function validateItemCardapio(body) {
   if (Number.isNaN(Number(body.preco)) || Number(body.preco) < 0) {
     throw new AppError('Preço do item deve ser válido.');
   }
+
+  if (body.imagem) {
+    const supportedImage = /^data:image\/(jpeg|png|webp);base64,/i.test(body.imagem);
+    if (!supportedImage) {
+      throw new AppError('A foto deve estar nos formatos JPG, PNG ou WebP.');
+    }
+
+    if (body.imagem.length > 2_500_000) {
+      throw new AppError('A foto do item é muito grande.');
+    }
+  }
 }

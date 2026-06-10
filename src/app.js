@@ -49,7 +49,7 @@ function getOriginHost(origin) {
 }
 
 app.use('/api', apiCors);
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'ComandaX' });

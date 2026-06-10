@@ -39,12 +39,16 @@ create table if not exists itens_cardapio (
   id bigserial primary key,
   nome varchar(120) not null,
   descricao text,
+  imagem text,
   preco numeric(10, 2) not null check (preco >= 0),
   categoria varchar(80) not null,
   disponivel boolean not null default true,
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now()
 );
+
+alter table itens_cardapio
+  add column if not exists imagem text;
 
 create table if not exists cardapio_itens (
   cardapio_id bigint not null references cardapios(id),

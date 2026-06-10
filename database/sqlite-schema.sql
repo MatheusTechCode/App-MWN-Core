@@ -39,6 +39,7 @@ create table if not exists itens_cardapio (
   id integer primary key autoincrement,
   nome text not null,
   descricao text,
+  imagem text,
   preco real not null check (preco >= 0),
   categoria text not null,
   disponivel integer not null default 1,

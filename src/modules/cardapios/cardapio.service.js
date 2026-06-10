@@ -68,6 +68,7 @@ function normalizarItem(body) {
   return {
     nome: body.nome.trim(),
     descricao: body.descricao?.trim() || null,
+    imagem: body.imagem || null,
     preco: Number(body.preco),
     categoria: body.categoria.trim(),
     disponivel: body.disponivel !== false,
