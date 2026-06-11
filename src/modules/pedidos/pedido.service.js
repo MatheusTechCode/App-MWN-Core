@@ -65,22 +65,6 @@ export async function criarPedidoOperacao({ comandaId, itens, observacao, usuari
   return createPedido({ comandaId, itens, observacao, criadoPor: usuario.perfil });
 }
 
-export async function editarPedidoCliente(id, { mesaToken, itens }) {
-  if (!mesaToken) {
-    throw new AppError('Token da mesa é obrigatório.');
-  }
-
-  const pedido = await findPedidoContextById(id);
-
-  validarPedidoEditavelCliente(pedido);
-
-  if (pedido.token_qr !== mesaToken) {
-    throw new AppError('Pedido não pertence à mesa informada.', 403);
-  }
-
-  return updatePedidoItens(id, itens, 'cliente');
-}
-
 export async function editarPedidoOperacao(id, { itens, usuario }) {
   const pedido = await findPedidoContextById(id);
 

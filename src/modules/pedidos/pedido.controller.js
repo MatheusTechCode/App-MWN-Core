@@ -3,7 +3,6 @@ import {
   alterarStatusPedido,
   criarPedido,
   criarPedidoOperacao,
-  editarPedidoCliente,
   editarPedidoOperacao,
   excluirPedidoCliente,
   excluirPedidoOperacao,
@@ -35,11 +34,6 @@ export const pedidoController = {
   createOperation: asyncHandler(async (req, res) => {
     validateCreatePedidoOperacao(req.body);
     res.status(201).json(await criarPedidoOperacao({ ...req.body, usuario: req.user }));
-  }),
-
-  update: asyncHandler(async (req, res) => {
-    validateUpdatePedido(req.body);
-    res.json(await editarPedidoCliente(req.params.id, req.body));
   }),
 
   updateOperation: asyncHandler(async (req, res) => {

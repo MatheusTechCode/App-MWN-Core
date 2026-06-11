@@ -397,15 +397,6 @@ export function App() {
     await loadOperacao();
   }
 
-  async function updatePedidoCliente(pedidoId, itens) {
-    await api(`/pedidos/${pedidoId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ mesaToken, itens }),
-    });
-    setMessage('Pedido atualizado com sucesso.');
-    await loadCliente();
-  }
-
   async function updatePedidoOperacao(pedidoId, itens) {
     await api(`/pedidos/operacao/${pedidoId}`, {
       method: 'PATCH',
@@ -1029,7 +1020,15 @@ export function App() {
                   <ClientOrderStatus
                     key={pedido.id}
                     pedido={pedido}
-                    onEdit={() => setEditingOrder({ pedido, mode: 'cliente' })}
+                    onDelete={async () => {
+                      const confirmed = window.confirm(
+                        `Excluir o pedido #${String(pedido.id).padStart(3, '0')}? Esta ação não poderá ser desfeita.`,
+                      );
+
+                      if (confirmed) {
+                        await deletePedidoCliente(pedido.id);
+                      }
+                    }}
                   />
                 ))}
               </div>
@@ -1166,7 +1165,7 @@ export function App() {
                         <small>Há {formatDuration(pedido.tempo_status_atual_segundos)} em {pedido.status.toLowerCase()}</small>
                         <small>{pedido.itens.map((item) => `${item.quantidade}x ${item.nome}`).join(', ')}</small>
                         {canEditOrder(pedido, user) ? (
-                          <button type="button" className="ghost" onClick={() => setEditingOrder({ pedido, mode: 'operacao' })}>
+                          <button type="button" className="ghost" onClick={() => setEditingOrder(pedido)}>
                             Editar pedido
                           </button>
                         ) : null}
@@ -1612,22 +1611,14 @@ export function App() {
           <section className="order-edit-modal" role="dialog" aria-modal="true" aria-labelledby="order-edit-title">
             <OrderEditForm
               cardapio={cardapio}
-              pedido={editingOrder.pedido}
+              pedido={editingOrder}
               onCancel={() => setEditingOrder(null)}
               onDelete={async (pedidoId) => {
-                if (editingOrder.mode === 'cliente') {
-                  await deletePedidoCliente(pedidoId);
-                } else {
-                  await deletePedidoOperacao(pedidoId);
-                }
+                await deletePedidoOperacao(pedidoId);
                 setEditingOrder(null);
               }}
               onSave={async (pedidoId, itens) => {
-                if (editingOrder.mode === 'cliente') {
-                  await updatePedidoCliente(pedidoId, itens);
-                } else {
-                  await updatePedidoOperacao(pedidoId, itens);
-                }
+                await updatePedidoOperacao(pedidoId, itens);
                 setEditingOrder(null);
               }}
             />
@@ -1638,7 +1629,7 @@ export function App() {
   );
 }
 
-function ClientOrderStatus({ pedido, onEdit }) {
+function ClientOrderStatus({ pedido, onDelete }) {
   const stages = [
     { status: 'Na fila', label: 'Pedido recebido' },
     { status: 'Em preparo', label: 'Em preparo' },
@@ -1714,8 +1705,8 @@ function ClientOrderStatus({ pedido, onEdit }) {
       </section>
 
       {pedido.status === 'Na fila' ? (
-        <button type="button" className="ghost order-status-edit" onClick={onEdit}>
-          Editar pedido
+        <button type="button" className="danger-button order-status-delete" onClick={onDelete}>
+          <Trash2 size={18} /> Excluir pedido
         </button>
       ) : null}
     </article>

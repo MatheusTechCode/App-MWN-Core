@@ -2197,6 +2197,10 @@ button.danger-button:hover {
   box-shadow: none;
 }
 
+.order-status-delete {
+  justify-self: start;
+}
+
 .order-delete-button {
   justify-self: start;
 }
