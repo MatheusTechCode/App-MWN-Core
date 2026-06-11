@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, Check, ClipboardList, Clock3, CreditCard, ImagePlus, Minus, Plus, ReceiptText, RefreshCcw, Search, Settings, ShoppingCart, Table2, Trash2, Users, Utensils, X } from 'lucide-react';
+import { BarChart3, Bell, BellRing, BookOpen, Check, ClipboardList, Clock3, CreditCard, ImagePlus, Minus, Plus, ReceiptText, RefreshCcw, Search, Settings, ShoppingCart, Table2, Trash2, Users, Utensils, X } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 
@@ -29,6 +29,8 @@ export function App() {
   const [cartFeedback, setCartFeedback] = useState(null);
   const cartFeedbackTimer = useRef(null);
   const cartFeedbackSequence = useRef(0);
+  const knownQueueOrderIds = useRef(new Set());
+  const queueOrdersInitialized = useRef(false);
   const [nomeCliente, setNomeCliente] = useState('');
   const [showNewComanda, setShowNewComanda] = useState(false);
   const [novaComandaOperacao, setNovaComandaOperacao] = useState({ mesaToken: '', nomeCliente: '' });
@@ -53,6 +55,9 @@ export function App() {
   const [message, setMessage] = useState('');
   const [orderConfirmation, setOrderConfirmation] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
+  const [notificationPermission, setNotificationPermission] = useState(
+    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
+  );
 
   const isAdminRoute = route.type === 'admin';
   const isClientRoute = route.type === 'cliente';
@@ -117,7 +122,9 @@ export function App() {
       podeVisualizarCardapio ? api('/cardapios/itens') : Promise.resolve([]),
       user.perfil === 'admin' ? api('/relatorios/vendas') : Promise.resolve(null),
     ]);
-    setOperacao(asArray(pedidosOperacao));
+    const listaPedidosOperacao = asArray(pedidosOperacao);
+    notifyNewQueueOrders(listaPedidosOperacao);
+    setOperacao(listaPedidosOperacao);
     setComandasOperacao(asArray(comandasAbertas));
     setCardapio(asArray(cardapioOperacao));
     const mesas = asArray(mesasOperacaoData);
@@ -332,6 +339,8 @@ export function App() {
     });
     localStorage.setItem('comandax_token', result.token);
     localStorage.setItem('comandax_user', JSON.stringify(result.usuario));
+    knownQueueOrderIds.current = new Set();
+    queueOrdersInitialized.current = false;
     setUser(result.usuario);
     setLogin({ login: '', senha: '' });
     setMessage(`Bem-vindo, ${result.usuario.nome}.`);
@@ -421,6 +430,77 @@ export function App() {
     });
     setMessage('Pedido excluído com sucesso.');
     await loadOperacao();
+  }
+
+  function notifyNewQueueOrders(orderList) {
+    const queueOrders = orderList.filter((pedido) => pedido.status === 'Na fila');
+    const currentIds = new Set(queueOrders.map((pedido) => Number(pedido.id)));
+
+    if (!queueOrdersInitialized.current) {
+      knownQueueOrderIds.current = currentIds;
+      queueOrdersInitialized.current = true;
+      return;
+    }
+
+    const newOrders = queueOrders.filter(
+      (pedido) => !knownQueueOrderIds.current.has(Number(pedido.id)),
+    );
+
+    knownQueueOrderIds.current = currentIds;
+
+    if (
+      newOrders.length === 0 ||
+      typeof Notification === 'undefined' ||
+      Notification.permission !== 'granted'
+    ) {
+      return;
+    }
+
+    newOrders.forEach((pedido) => {
+      const items = pedido.itens
+        .map((item) => `${item.quantidade}x ${item.nome}`)
+        .join(', ');
+
+      try {
+        const notification = new Notification(
+          `Novo pedido · Mesa ${pedido.mesa_numero}`,
+          {
+            body: `#${pedido.id} · ${pedido.nome_cliente}${items ? `\n${items}` : ''}`,
+            icon: '/comanda-x.png',
+            tag: `comandax-pedido-${pedido.id}`,
+          },
+        );
+
+        notification.onclick = () => {
+          window.focus();
+          navigate('/admin/pedidos');
+          notification.close();
+        };
+      } catch {
+        setMessage('O navegador não conseguiu exibir a notificação do novo pedido.');
+      }
+    });
+  }
+
+  async function enableOrderNotifications() {
+    if (typeof Notification === 'undefined') {
+      setNotificationPermission('unsupported');
+      setMessage('Este navegador não oferece suporte a notificações do sistema.');
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+
+      if (permission === 'granted') {
+        setMessage('Notificações de novos pedidos ativadas.');
+      } else if (permission === 'denied') {
+        setMessage('As notificações foram bloqueadas. Libere a permissão nas configurações do navegador.');
+      }
+    } catch {
+      setMessage('Não foi possível solicitar a permissão de notificações neste navegador.');
+    }
   }
 
   async function createComandaOperacao(event) {
@@ -582,6 +662,8 @@ export function App() {
     setOperacao([]);
     setComandasOperacao([]);
     setRelatorioVendas(null);
+    knownQueueOrderIds.current = new Set();
+    queueOrdersInitialized.current = false;
     setMessage('Sessão encerrada.');
   }
 
@@ -1154,27 +1236,45 @@ export function App() {
                 ) : null}
 
                 {adminPage === 'pedidos' ? (
-                  <div className="kanban">
-                {['Na fila', 'Em preparo', 'Pronto'].map((status) => (
-                  <section key={status} className="lane">
-                    <h2>{status}</h2>
-                    {operacao.filter((pedido) => pedido.status === status).map((pedido) => (
-                      <article className="order-card" key={pedido.id}>
-                        <strong>Mesa {pedido.mesa_numero} · #{pedido.id}</strong>
-                        <span>{pedido.nome_cliente}</span>
-                        <small>Há {formatDuration(pedido.tempo_status_atual_segundos)} em {pedido.status.toLowerCase()}</small>
-                        <small>{pedido.itens.map((item) => `${item.quantidade}x ${item.nome}`).join(', ')}</small>
-                        {canEditOrder(pedido, user) ? (
-                          <button type="button" className="ghost" onClick={() => setEditingOrder(pedido)}>
-                            Editar pedido
-                          </button>
-                        ) : null}
-                        <StatusActions pedido={pedido} user={user} onChange={changeStatus} />
-                      </article>
-                    ))}
+                  <section className="operation-orders-page">
+                    <header className="page-heading orders-operation-heading">
+                      <div>
+                        <h1>Pedidos</h1>
+                        <p>Acompanhe a fila e o preparo em tempo real.</p>
+                      </div>
+                      <button
+                        className={notificationPermission === 'granted' ? 'notification-enabled' : 'ghost'}
+                        type="button"
+                        onClick={enableOrderNotifications}
+                        disabled={notificationPermission === 'unsupported'}
+                      >
+                        {notificationPermission === 'granted' ? <BellRing size={18} /> : <Bell size={18} />}
+                        {notificationPermission === 'granted' ? 'Notificações ativas' : 'Ativar notificações'}
+                      </button>
+                    </header>
+
+                    <div className="kanban">
+                      {['Na fila', 'Em preparo', 'Pronto'].map((status) => (
+                        <section key={status} className="lane">
+                          <h2>{status}</h2>
+                          {operacao.filter((pedido) => pedido.status === status).map((pedido) => (
+                            <article className="order-card" key={pedido.id}>
+                              <strong>Mesa {pedido.mesa_numero} · #{pedido.id}</strong>
+                              <span>{pedido.nome_cliente}</span>
+                              <small>Há {formatDuration(pedido.tempo_status_atual_segundos)} em {pedido.status.toLowerCase()}</small>
+                              <small>{pedido.itens.map((item) => `${item.quantidade}x ${item.nome}`).join(', ')}</small>
+                              {canEditOrder(pedido, user) ? (
+                                <button type="button" className="ghost" onClick={() => setEditingOrder(pedido)}>
+                                  Editar pedido
+                                </button>
+                              ) : null}
+                              <StatusActions pedido={pedido} user={user} onChange={changeStatus} />
+                            </article>
+                          ))}
+                        </section>
+                      ))}
+                    </div>
                   </section>
-                ))}
-                  </div>
                 ) : null}
 
                 {adminPage === 'comandas' && ['admin', 'garcom'].includes(user.perfil) ? (
