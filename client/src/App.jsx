@@ -30,6 +30,7 @@ export function App() {
   const cartFeedbackTimer = useRef(null);
   const cartFeedbackSequence = useRef(0);
   const [nomeCliente, setNomeCliente] = useState('');
+  const [showNewComanda, setShowNewComanda] = useState(false);
   const [novaComandaOperacao, setNovaComandaOperacao] = useState({ mesaToken: '', nomeCliente: '' });
   const [login, setLogin] = useState({ login: '', senha: '' });
   const [recoverAdmin, setRecoverAdmin] = useState({ login: '', codigoRecuperacao: '', novaSenha: '' });
@@ -201,6 +202,24 @@ export function App() {
       .filter((grupo) => grupo.itens.length > 0);
   }, [cardapio, menuSearch, selectedCategory]);
   const comandaAtual = comandas.find((comanda) => Number(comanda.id) === Number(selectedComanda));
+  const comandaItems = useMemo(() => {
+    const items = new Map();
+
+    pedidos
+      .filter((pedido) => Number(pedido.comanda_id) === Number(selectedComanda))
+      .flatMap((pedido) => pedido.itens || [])
+      .forEach((item) => {
+        const key = `${item.itemCardapioId}-${item.precoUnitario}`;
+        const current = items.get(key);
+
+        items.set(key, {
+          ...item,
+          quantidade: Number(item.quantidade) + Number(current?.quantidade || 0),
+        });
+      });
+
+    return Array.from(items.values());
+  }, [pedidos, selectedComanda]);
 
   function addToCart(item, quantity = 1, observation = '') {
     const normalizedObservation = observation.trim();
@@ -278,6 +297,7 @@ export function App() {
     });
     localStorage.setItem(`comandax_codigo_${nova.id}`, nova.codigo_cliente);
     setNomeCliente('');
+    setShowNewComanda(false);
     setSelectedComanda(nova.id);
     setMessage('Comanda criada com sucesso.');
     await loadCliente();
@@ -621,46 +641,112 @@ export function App() {
       {isClientRoute ? (
         <section className="client-page">
           {clientScreen === 'comanda' ? (
-            <section className="client-content narrow">
-              <div className="panel">
-                <div className="mesa-box">
-                  <span>Mesa</span>
-                  <strong>{mesa?.numero || '--'}</strong>
-                </div>
-
-                <form onSubmit={createComanda} className="stack">
-                  <label>
-                    Nova comanda
-                    <input
-                      placeholder="Nome do cliente"
-                      value={nomeCliente}
-                      onChange={(event) => setNomeCliente(event.target.value)}
-                    />
-                  </label>
-                  <button type="submit">
-                    <Plus size={18} /> Criar
+            <section className="client-comanda-page">
+              <div className="client-comanda-panel">
+                <header className="comanda-toolbar">
+                  <div className="comanda-table-badge">
+                    <span>Mesa</span>
+                    <strong>{mesa?.numero || '--'}</strong>
+                  </div>
+                  <button
+                    className="comanda-new-button"
+                    type="button"
+                    onClick={() => setShowNewComanda((current) => !current)}
+                    aria-expanded={showNewComanda}
+                  >
+                    {showNewComanda ? <X size={18} /> : <Plus size={18} />}
+                    {showNewComanda ? 'Cancelar' : 'Nova comanda'}
                   </button>
-                </form>
+                </header>
 
-                <label>
-                  Comanda atual
-                  <select value={selectedComanda || ''} onChange={(event) => setSelectedComanda(Number(event.target.value))}>
-                    <option value="">Selecione</option>
-                    {comandas.map((comanda) => (
-                      <option key={comanda.id} value={comanda.id}>
-                        {comanda.nome_cliente}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {showNewComanda || comandas.length === 0 ? (
+                  <form onSubmit={createComanda} className="comanda-create-form">
+                    <label>
+                      Nome do cliente
+                      <input
+                        autoFocus={showNewComanda}
+                        placeholder="Digite seu nome"
+                        value={nomeCliente}
+                        onChange={(event) => setNomeCliente(event.target.value)}
+                      />
+                    </label>
+                    <button type="submit" disabled={nomeCliente.trim().length < 2}>
+                      <Plus size={18} /> Abrir comanda
+                    </button>
+                  </form>
+                ) : null}
+
+                {comandas.length > 1 ? (
+                  <label className="comanda-selector">
+                    Visualizando a comanda de
+                    <select value={selectedComanda || ''} onChange={(event) => setSelectedComanda(Number(event.target.value))}>
+                      {comandas.map((comanda) => (
+                        <option key={comanda.id} value={comanda.id}>
+                          {comanda.nome_cliente}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
 
                 {comandaAtual ? (
-                  <div className="summary-box">
-                    <span>Total da comanda</span>
-                    <strong>{formatMoney(comandaAtual.total)}</strong>
-                    <small>Solicite o fechamento ao garçom quando terminar.</small>
+                  <article className="client-comanda-card">
+                    <header>
+                      <div>
+                        <ReceiptText size={20} />
+                        <span>Comanda aberta</span>
+                      </div>
+                      <h1>{comandaAtual.nome_cliente}</h1>
+                    </header>
+
+                    <div className="comanda-items" aria-label="Itens da comanda">
+                      {comandaItems.length > 0 ? comandaItems.map((item) => (
+                        <div className="comanda-item-row" key={`${item.itemCardapioId}-${item.precoUnitario}`}>
+                          <div>
+                            <strong>{item.nome}</strong>
+                            <small>{formatMoney(item.precoUnitario)} cada</small>
+                          </div>
+                          <span className="comanda-item-quantity">
+                            <span aria-hidden="true">x</span> {item.quantidade}
+                          </span>
+                          <strong>{formatMoney(Number(item.precoUnitario) * Number(item.quantidade))}</strong>
+                        </div>
+                      )) : (
+                        <div className="comanda-empty">
+                          <ShoppingCart size={24} />
+                          <strong>Sua comanda ainda está vazia</strong>
+                          <span>Escolha os itens no cardápio para começar.</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <footer className="comanda-total">
+                      <span>Total</span>
+                      <strong>{formatMoney(comandaAtual.total)}</strong>
+                    </footer>
+
+                    <div className="comanda-actions">
+                      <button type="button" onClick={() => changeClientScreen('cardapio')}>
+                        <Utensils size={18} /> Ver cardápio
+                      </button>
+                      {comandaItems.length > 0 ? (
+                        <button
+                          className="ghost"
+                          type="button"
+                          onClick={() => setMessage('Para fechar e pagar a comanda, solicite o atendimento do garçom.')}
+                        >
+                          <CreditCard size={18} /> Solicitar fechamento
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                ) : (
+                  <div className="comanda-welcome">
+                    <ReceiptText size={30} />
+                    <h1>Abra sua comanda</h1>
+                    <p>Informe seu nome para acessar o cardápio e enviar pedidos.</p>
                   </div>
-                ) : null}
+                )}
               </div>
             </section>
           ) : null}

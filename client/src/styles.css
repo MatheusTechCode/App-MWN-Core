@@ -349,6 +349,191 @@ small {
   max-width: 620px;
 }
 
+.client-comanda-page {
+  margin: 0 auto;
+  max-width: 720px;
+  padding: var(--spacing-5);
+  width: 100%;
+}
+
+.client-comanda-panel {
+  display: grid;
+  gap: var(--spacing-4);
+}
+
+.comanda-toolbar {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-4);
+  justify-content: space-between;
+}
+
+.comanda-table-badge {
+  align-items: center;
+  background: var(--color-surface-light);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: var(--spacing-4);
+  min-height: 52px;
+  padding: 10px var(--spacing-4);
+}
+
+.comanda-table-badge span {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.comanda-table-badge strong {
+  color: var(--color-accent);
+  font-size: var(--font-size-md);
+}
+
+.comanda-new-button {
+  min-height: 44px;
+}
+
+.comanda-create-form {
+  align-items: end;
+  background: rgba(15, 23, 42, 0.82);
+  border: var(--card-border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--spacing-3);
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--spacing-4);
+}
+
+.comanda-create-form button {
+  min-width: 160px;
+}
+
+.comanda-selector {
+  background: rgba(0, 209, 255, 0.06);
+  border-left: 3px solid var(--color-primary-light);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  grid-template-columns: minmax(140px, auto) minmax(0, 1fr);
+  align-items: center;
+  padding: var(--spacing-3) var(--spacing-4);
+}
+
+.client-comanda-card {
+  background: rgba(7, 17, 32, 0.92);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-glow);
+  display: grid;
+  gap: var(--spacing-5);
+  padding: var(--spacing-5);
+}
+
+.client-comanda-card > header {
+  display: grid;
+  gap: var(--spacing-2);
+}
+
+.client-comanda-card > header > div {
+  align-items: center;
+  color: var(--color-primary-light);
+  display: flex;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  gap: var(--spacing-2);
+}
+
+.client-comanda-card h1 {
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
+.comanda-items {
+  display: grid;
+}
+
+.comanda-item-row {
+  align-items: center;
+  border-bottom: 1px solid var(--color-primary-light);
+  display: grid;
+  gap: var(--spacing-3);
+  grid-template-columns: minmax(0, 1fr) 52px minmax(84px, auto);
+  min-height: 62px;
+  padding: var(--spacing-2) 0;
+}
+
+.comanda-item-row > div {
+  display: grid;
+  gap: 2px;
+}
+
+.comanda-item-row small {
+  color: var(--color-text-muted);
+}
+
+.comanda-item-row > strong {
+  text-align: right;
+}
+
+.comanda-item-quantity {
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.comanda-empty,
+.comanda-welcome {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  justify-content: center;
+  min-height: 180px;
+  text-align: center;
+}
+
+.comanda-empty strong {
+  color: var(--color-text-secondary);
+}
+
+.comanda-empty span,
+.comanda-welcome p {
+  margin: 0;
+}
+
+.comanda-welcome {
+  background: rgba(15, 23, 42, 0.54);
+  border: 1px dashed var(--color-border-soft);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-5);
+}
+
+.comanda-welcome h1 {
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  margin: var(--spacing-1) 0 0;
+}
+
+.comanda-total {
+  align-items: center;
+  display: flex;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  justify-content: space-between;
+  padding-top: var(--spacing-2);
+}
+
+.comanda-total strong {
+  color: var(--color-accent);
+  font-size: var(--font-size-lg);
+}
+
+.comanda-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  justify-content: flex-end;
+}
+
 .client-orders-page {
   display: grid;
   gap: var(--spacing-5);
@@ -2230,6 +2415,60 @@ button.danger-button:hover {
   .client-orders-page {
     gap: var(--spacing-4);
     padding: var(--spacing-4);
+  }
+
+  .client-comanda-page {
+    padding: var(--spacing-4);
+  }
+
+  .comanda-toolbar {
+    gap: var(--spacing-3);
+  }
+
+  .comanda-table-badge {
+    min-width: 112px;
+  }
+
+  .comanda-new-button {
+    padding-left: var(--spacing-3);
+    padding-right: var(--spacing-3);
+  }
+
+  .comanda-create-form,
+  .comanda-selector {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .comanda-create-form button {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .client-comanda-card {
+    border-left: 0;
+    border-radius: 0;
+    border-right: 0;
+    margin: 0 calc(var(--spacing-4) * -1);
+    padding: var(--spacing-4);
+  }
+
+  .comanda-item-row {
+    gap: var(--spacing-2);
+    grid-template-columns: minmax(0, 1fr) 38px minmax(74px, auto);
+  }
+
+  .comanda-item-row > strong {
+    font-size: var(--font-size-sm);
+  }
+
+  .comanda-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .comanda-actions button {
+    width: 100%;
   }
 
   .orders-page-header {

@@ -22,7 +22,7 @@ export async function findPedidoContextById(id) {
 
 export async function listPedidosByMesaToken(mesaToken) {
   const result = await query(
-    `select p.id, p.status, p.observacao, p.criado_por, p.criado_em, p.atualizado_em,
+    `select p.id, p.comanda_id, p.status, p.observacao, p.criado_por, p.criado_em, p.atualizado_em,
        c.nome_cliente, m.numero as mesa_numero,
        ic.id as item_cardapio_id, ic.nome, ip.quantidade, ip.preco_unitario
      from pedidos p
@@ -41,7 +41,7 @@ export async function listPedidosByMesaToken(mesaToken) {
 
 export async function listPedidosOperacao() {
   const result = await query(
-    `select p.id, p.status, p.observacao, p.criado_por, p.criado_em, c.nome_cliente,
+    `select p.id, p.comanda_id, p.status, p.observacao, p.criado_por, p.criado_em, c.nome_cliente,
        m.numero as mesa_numero,
        ic.id as item_cardapio_id, ic.nome, ip.quantidade, ip.preco_unitario
      from pedidos p
@@ -232,6 +232,7 @@ function groupPedidos(rows) {
     if (!pedidos.has(row.id)) {
       pedidos.set(row.id, {
         id: row.id,
+        comanda_id: row.comanda_id,
         status: row.status,
         observacao: row.observacao,
         criado_por: row.criado_por,
