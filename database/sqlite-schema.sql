@@ -43,6 +43,29 @@ create table if not exists itens_cardapio (
   preco real not null check (preco >= 0),
   categoria text not null,
   disponivel integer not null default 1,
+  tempo_preparo_minutos integer not null default 0 check (tempo_preparo_minutos >= 0),
+  cozinha_estacao_id integer references cozinha_estacoes(id),
+  criado_em text not null default current_timestamp,
+  atualizado_em text not null default current_timestamp
+);
+
+create table if not exists cozinha_configuracoes (
+  id integer primary key autoincrement,
+  modo_operacao text not null default 'simples' check (modo_operacao in ('simples', 'avancado')),
+  agrupar_entrega_mesa integer not null default 1,
+  agrupar_producao_semelhantes integer not null default 1,
+  tolerancia_minutos integer not null default 3 check (tolerancia_minutos >= 0),
+  alerta_fila_minutos integer not null default 10 check (alerta_fila_minutos > 0),
+  perfis_visao_consolidada text not null default 'garcom',
+  criado_em text not null default current_timestamp,
+  atualizado_em text not null default current_timestamp
+);
+
+create table if not exists cozinha_estacoes (
+  id integer primary key autoincrement,
+  nome text not null unique,
+  slug text not null unique,
+  ativo integer not null default 1,
   criado_em text not null default current_timestamp,
   atualizado_em text not null default current_timestamp
 );
@@ -59,6 +82,9 @@ create table if not exists pedidos (
   status text not null check (status in ('Na fila', 'Em preparo', 'Pronto', 'Entregue')),
   observacao text,
   criado_por text not null default 'cliente',
+  urgente integer not null default 0,
+  urgente_motivo text,
+  urgente_em text,
   criado_em text not null default current_timestamp,
   atualizado_em text not null default current_timestamp
 );
@@ -69,7 +95,14 @@ create table if not exists itens_pedido (
   item_cardapio_id integer not null references itens_cardapio(id),
   quantidade integer not null check (quantidade > 0),
   preco_unitario real not null check (preco_unitario >= 0),
-  observacao text
+  observacao text,
+  status text not null default 'Na fila' check (status in ('Na fila', 'Em preparo', 'Pronto', 'Entregue')),
+  urgente integer not null default 0,
+  urgente_motivo text,
+  iniciado_preparo_em text,
+  pronto_em text,
+  entregue_em text,
+  atualizado_em text not null default current_timestamp
 );
 
 create table if not exists pagamentos (
@@ -101,3 +134,16 @@ create table if not exists historico_atendimento (
 create index if not exists idx_comandas_mesa_status on comandas(mesa_id, status);
 create index if not exists idx_pedidos_status on pedidos(status);
 create index if not exists idx_historico_status_pedido on historico_status_pedido(pedido_id, criado_em);
+create index if not exists idx_itens_pedido_status on itens_pedido(status);
+create index if not exists idx_itens_cardapio_estacao on itens_cardapio(cozinha_estacao_id);
+
+insert into cozinha_configuracoes (
+  modo_operacao,
+  agrupar_entrega_mesa,
+  agrupar_producao_semelhantes,
+  tolerancia_minutos,
+  alerta_fila_minutos,
+  perfis_visao_consolidada
+)
+select 'simples', 1, 1, 3, 10, 'garcom'
+where not exists (select 1 from cozinha_configuracoes);

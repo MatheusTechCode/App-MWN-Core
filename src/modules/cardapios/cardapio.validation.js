@@ -19,6 +19,14 @@ export function validateItemCardapio(body) {
     throw new AppError('Preço do item deve ser válido.');
   }
 
+  if (!Number.isInteger(Number(body.tempoPreparoMinutos || 0)) || Number(body.tempoPreparoMinutos || 0) < 0) {
+    throw new AppError('Tempo estimado de preparo deve ser um número inteiro maior ou igual a zero.');
+  }
+
+  if (body.cozinhaEstacaoId && !Number.isInteger(Number(body.cozinhaEstacaoId))) {
+    throw new AppError('Estação de preparo inválida.');
+  }
+
   if (body.imagem) {
     const supportedImage = /^data:image\/(jpeg|png|webp);base64,/i.test(body.imagem);
     if (!supportedImage) {

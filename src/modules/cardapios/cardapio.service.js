@@ -73,5 +73,7 @@ function normalizarItem(body) {
     categoria: body.categoria.trim(),
     disponivel: body.disponivel !== false,
     cardapioId: body.cardapioId || null,
+    tempoPreparoMinutos: Number(body.tempoPreparoMinutos || 0),
+    cozinhaEstacaoId: body.cozinhaEstacaoId ? Number(body.cozinhaEstacaoId) : null,
   };
 }

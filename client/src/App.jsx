@@ -1,6 +1,8 @@
 import { BarChart3, Bell, BellRing, BookOpen, Check, ClipboardList, Clock3, CreditCard, ImagePlus, Minus, Plus, ReceiptText, RefreshCcw, Search, Settings, ShoppingCart, Table2, Trash2, Users, Utensils, X } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
+import { KitchenConfigPage } from './kitchen-ui.jsx';
+import { KitchenOperationsPage } from './kitchen-operations-v2.jsx';
 
 const fallbackMesaToken = new URLSearchParams(window.location.search).get('mesa') || 'mwn_qr_a8F3kP7xQ2L9';
 const initialRoute = getRouteFromPath();
@@ -14,11 +16,13 @@ export function App() {
   const [comandas, setComandas] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [operacao, setOperacao] = useState([]);
+  const [painelOperacao, setPainelOperacao] = useState(null);
   const [comandasOperacao, setComandasOperacao] = useState([]);
   const [mesasOperacao, setMesasOperacao] = useState([]);
   const [garcons, setGarcons] = useState([]);
   const [cardapiosAdmin, setCardapiosAdmin] = useState([]);
   const [itensAdmin, setItensAdmin] = useState([]);
+  const [cozinhaConfig, setCozinhaConfig] = useState(null);
   const [relatorioVendas, setRelatorioVendas] = useState(null);
   const [selectedComanda, setSelectedComanda] = useState(null);
   const [cart, setCart] = useState([]);
@@ -41,6 +45,15 @@ export function App() {
   const [garcomForm, setGarcomForm] = useState({ id: null, nome: '', email: '', senha: '' });
   const [mesaForm, setMesaForm] = useState({ id: null, numero: '', status: 'ativa' });
   const [cardapioForm, setCardapioForm] = useState({ id: null, nome: '', ativo: true });
+  const [cozinhaForm, setCozinhaForm] = useState({
+    modoOperacao: 'simples',
+    agruparEntregaMesa: true,
+    agruparProducaoSemelhantes: true,
+    toleranciaMinutos: 3,
+    alertaFilaMinutos: 10,
+    perfisVisaoConsolidada: ['garcom'],
+  });
+  const [estacaoForm, setEstacaoForm] = useState({ id: null, nome: '', ativo: true });
   const [itemForm, setItemForm] = useState({
     id: null,
     nome: '',
@@ -50,6 +63,8 @@ export function App() {
     categoria: '',
     disponivel: true,
     cardapioId: '',
+    tempoPreparoMinutos: 0,
+    cozinhaEstacaoId: '',
   });
   const [user, setUser] = useState(readStoredUser);
   const [message, setMessage] = useState('');
@@ -105,26 +120,31 @@ export function App() {
     const podeVisualizarCardapio = ['admin', 'garcom', 'cozinha'].includes(user.perfil);
     const [
       pedidosOperacao,
+      pedidosPainel,
       comandasAbertas,
       cardapioOperacao,
       mesasOperacaoData,
       garconsData,
       cardapiosAdminData,
       itensAdminData,
+      cozinhaConfigData,
       relatorioVendasData,
     ] = await Promise.all([
       api('/pedidos/operacao'),
+      api('/pedidos/operacao/painel'),
       podeGerenciarComandas ? api('/comandas') : Promise.resolve([]),
       podeVisualizarCardapio ? api('/cardapios') : Promise.resolve([]),
       podeGerenciarComandas ? api('/mesas') : Promise.resolve([]),
       user.perfil === 'admin' ? api('/usuarios/garcons') : Promise.resolve([]),
       podeVisualizarCardapio ? api('/cardapios/admin') : Promise.resolve([]),
       podeVisualizarCardapio ? api('/cardapios/itens') : Promise.resolve([]),
+      api('/cozinha/config'),
       user.perfil === 'admin' ? api('/relatorios/vendas') : Promise.resolve(null),
     ]);
     const listaPedidosOperacao = asArray(pedidosOperacao);
     notifyNewQueueOrders(listaPedidosOperacao);
     setOperacao(listaPedidosOperacao);
+    setPainelOperacao(pedidosPainel);
     setComandasOperacao(asArray(comandasAbertas));
     setCardapio(asArray(cardapioOperacao));
     const mesas = asArray(mesasOperacaoData);
@@ -133,10 +153,20 @@ export function App() {
     const adminCardapios = asArray(cardapiosAdminData);
     setCardapiosAdmin(adminCardapios);
     setItensAdmin(asArray(itensAdminData));
+    setCozinhaConfig(cozinhaConfigData);
+    setCozinhaForm({
+      modoOperacao: cozinhaConfigData?.modoOperacao || 'simples',
+      agruparEntregaMesa: cozinhaConfigData?.agruparEntregaMesa !== false,
+      agruparProducaoSemelhantes: cozinhaConfigData?.agruparProducaoSemelhantes !== false,
+      toleranciaMinutos: cozinhaConfigData?.toleranciaMinutos ?? 3,
+      alertaFilaMinutos: cozinhaConfigData?.alertaFilaMinutos ?? 10,
+      perfisVisaoConsolidada: cozinhaConfigData?.perfisVisaoConsolidada || ['garcom'],
+    });
     setRelatorioVendas(relatorioVendasData);
     setItemForm((current) => ({
       ...current,
       cardapioId: current.cardapioId || adminCardapios[0]?.id || '',
+      cozinhaEstacaoId: current.cozinhaEstacaoId || '',
     }));
     setNovaComandaOperacao((current) => ({
       ...current,
@@ -344,7 +374,7 @@ export function App() {
     setUser(result.usuario);
     setLogin({ login: '', senha: '' });
     setMessage(`Bem-vindo, ${result.usuario.nome}.`);
-    await loadOperacao();
+    navigate('/admin/pedidos');
   }
 
   async function submitAdminRecovery(event) {
@@ -363,6 +393,96 @@ export function App() {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
+    await loadOperacao();
+  }
+
+  async function changeItemStatus(item, status) {
+    await api(`/pedidos/itens/${item.id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    await loadOperacao();
+  }
+
+  async function toggleKitchenOrderUrgency(pedido, urgente) {
+    const motivo = urgente
+      ? window.prompt(`Motivo da urgência do pedido #${pedido.id}:`, pedido.urgente_motivo || '')
+      : '';
+
+    if (urgente && (!motivo || motivo.trim().length < 3)) {
+      setMessage('Informe um motivo com pelo menos 3 caracteres para marcar urgência.');
+      return;
+    }
+
+    await api(`/pedidos/${pedido.id}/urgencia`, {
+      method: 'PATCH',
+      body: JSON.stringify({ urgente, motivo: motivo?.trim() || '' }),
+    });
+    setMessage(urgente ? `Pedido #${pedido.id} marcado como urgente.` : `Urgência removida do pedido #${pedido.id}.`);
+    await loadOperacao();
+  }
+
+  async function toggleKitchenItemUrgency(item, urgente) {
+    const motivo = urgente
+      ? window.prompt(`Motivo da urgência do item ${item.nome}:`, item.urgenteMotivo || '')
+      : '';
+
+    if (urgente && (!motivo || motivo.trim().length < 3)) {
+      setMessage('Informe um motivo com pelo menos 3 caracteres para marcar urgência.');
+      return;
+    }
+
+    await api(`/pedidos/itens/${item.id}/urgencia`, {
+      method: 'PATCH',
+      body: JSON.stringify({ urgente, motivo: motivo?.trim() || '' }),
+    });
+    setMessage(urgente ? `Item ${item.nome} marcado como urgente.` : `Urgência removida do item ${item.nome}.`);
+    await loadOperacao();
+  }
+
+  async function returnKitchenOrder(pedido) {
+    const motivo = window.prompt(`Motivo do retorno do pedido #${pedido.id} para a fila:`, 'Refazer urgente');
+
+    if (!motivo || motivo.trim().length < 3) {
+      setMessage('Informe um motivo com pelo menos 3 caracteres para retornar o pedido.');
+      return;
+    }
+
+    await api(`/pedidos/${pedido.id}/retorno`, {
+      method: 'PATCH',
+      body: JSON.stringify({ motivo: motivo.trim() }),
+    });
+    setMessage(`Pedido #${pedido.id} retornou para a fila como urgente.`);
+    await loadOperacao();
+  }
+
+  async function returnKitchenItem(item) {
+    const motivo = window.prompt(`Motivo do retorno do item ${item.nome} para a fila:`, 'Refazer urgente');
+
+    if (!motivo || motivo.trim().length < 3) {
+      setMessage('Informe um motivo com pelo menos 3 caracteres para retornar o item.');
+      return;
+    }
+
+    await api(`/pedidos/itens/${item.id}/retorno`, {
+      method: 'PATCH',
+      body: JSON.stringify({ motivo: motivo.trim() }),
+    });
+    setMessage(`Item ${item.nome} retornou para a fila como urgente.`);
+    await loadOperacao();
+  }
+
+  async function deliverMesaOrders(mesa) {
+    const prontos = mesa.pedidos.filter((pedido) => pedido.status === 'Pronto');
+
+    for (const pedido of prontos) {
+      await api(`/pedidos/${pedido.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'Entregue' }),
+      });
+    }
+
+    setMessage(`Pedidos prontos da mesa ${mesa.mesaNumero} marcados como entregues.`);
     await loadOperacao();
   }
 
@@ -392,6 +512,43 @@ export function App() {
     });
     setPasswordReset({ email: '', novaSenha: '' });
     setMessage('Senha redefinida com sucesso.');
+  }
+
+  async function saveCozinhaConfig(event) {
+    event.preventDefault();
+    await api('/cozinha/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        modoOperacao: cozinhaForm.modoOperacao,
+        agruparEntregaMesa: cozinhaForm.agruparEntregaMesa,
+        agruparProducaoSemelhantes: cozinhaForm.agruparProducaoSemelhantes,
+        toleranciaMinutos: Number(cozinhaForm.toleranciaMinutos),
+        alertaFilaMinutos: Number(cozinhaForm.alertaFilaMinutos),
+        perfisVisaoConsolidada: cozinhaForm.perfisVisaoConsolidada,
+      }),
+    });
+    setMessage('Configuração da cozinha salva com sucesso.');
+    await loadOperacao();
+  }
+
+  async function saveEstacaoCozinha(event) {
+    event.preventDefault();
+    const method = estacaoForm.id ? 'PUT' : 'POST';
+    const path = estacaoForm.id ? `/cozinha/estacoes/${estacaoForm.id}` : '/cozinha/estacoes';
+
+    await api(path, {
+      method,
+      body: JSON.stringify({ nome: estacaoForm.nome, ativo: estacaoForm.ativo }),
+    });
+    setEstacaoForm({ id: null, nome: '', ativo: true });
+    setMessage('Estação da cozinha salva com sucesso.');
+    await loadOperacao();
+  }
+
+  async function deleteEstacaoCozinha(estacao) {
+    await api(`/cozinha/estacoes/${estacao.id}`, { method: 'DELETE' });
+    setMessage(`Estação ${estacao.nome} excluída.`);
+    await loadOperacao();
   }
 
   async function createPedidoOperacao({ comandaId, itemCardapioId, quantidade }) {
@@ -460,12 +617,20 @@ export function App() {
       const items = pedido.itens
         .map((item) => `${item.quantidade}x ${item.nome}`)
         .join(', ');
+      const observationParts = [
+        pedido.observacao ? `Obs. pedido: ${pedido.observacao}` : '',
+        pedido.itens
+          .filter((item) => item.observacao)
+          .map((item) => `${item.quantidade}x ${item.nome} - ${item.observacao}`),
+      ]
+        .flat()
+        .filter(Boolean);
 
       try {
         const notification = new Notification(
           `Novo pedido · Mesa ${pedido.mesa_numero}`,
           {
-            body: `#${pedido.id} · ${pedido.nome_cliente}${items ? `\n${items}` : ''}`,
+            body: `#${pedido.id} · ${pedido.nome_cliente}${items ? `\n${items}` : ''}${observationParts.length ? `\n${observationParts.join('\n')}` : ''}`,
             icon: '/comanda-x.png',
             tag: `comandax-pedido-${pedido.id}`,
           },
@@ -622,7 +787,18 @@ export function App() {
       body: JSON.stringify(itemForm),
     });
 
-    setItemForm({ id: null, nome: '', descricao: '', imagem: '', preco: '', categoria: '', disponivel: true, cardapioId: itemForm.cardapioId });
+    setItemForm({
+      id: null,
+      nome: '',
+      descricao: '',
+      imagem: '',
+      preco: '',
+      categoria: '',
+      disponivel: true,
+      cardapioId: itemForm.cardapioId,
+      tempoPreparoMinutos: 0,
+      cozinhaEstacaoId: '',
+    });
     setMessage('Item de cardápio salvo com sucesso.');
     await loadOperacao();
   }
@@ -660,7 +836,9 @@ export function App() {
     localStorage.removeItem('comandax_user');
     setUser(null);
     setOperacao([]);
+    setPainelOperacao(null);
     setComandasOperacao([]);
+    setCozinhaConfig(null);
     setRelatorioVendas(null);
     knownQueueOrderIds.current = new Set();
     queueOrdersInitialized.current = false;
@@ -1211,6 +1389,20 @@ export function App() {
             </div>
           ) : (
             <div className="operation-layout">
+              <section className="admin-hero">
+                <div>
+                  <span>Operação ativa</span>
+                  <h1>Bem-vindo, {user.nome}.</h1>
+                  <p>
+                    Você está logado como <strong>{user.perfil}</strong>. Use o menu lateral para
+                    acessar pedidos, comandas e demais áreas.
+                  </p>
+                </div>
+                <button type="button" className="ghost" onClick={() => navigate('/admin/pedidos')}>
+                  Ir para pedidos
+                </button>
+              </section>
+
               <nav className="admin-nav" aria-label="Áreas administrativas">
                 {adminNavItems.map((item) => {
                   const Icon = item.icon;
@@ -1236,6 +1428,21 @@ export function App() {
                 ) : null}
 
                 {adminPage === 'pedidos' ? (
+                  <KitchenOperationsPage
+                    panel={painelOperacao}
+                    orders={operacao}
+                    user={user}
+                    notificationPermission={notificationPermission}
+                    onEnableNotifications={enableOrderNotifications}
+                    onRefresh={loadOperacao}
+                    onOrderStatus={changeStatus}
+                    onItemStatus={changeItemStatus}
+                    onDeliverMesa={deliverMesaOrders}
+                    onEditOrder={setEditingOrder}
+                  />
+                ) : null}
+
+                {false && adminPage === 'pedidos' ? (
                   <section className="operation-orders-page">
                     <header className="page-heading orders-operation-heading">
                       <div>
@@ -1326,6 +1533,19 @@ export function App() {
 
                 {user.perfil === 'admin' && ['configuracoes', 'garcons', 'mesas', 'cardapios'].includes(adminPage) ? (
                   <section className="admin-panels single-page">
+                    {adminPage === 'configuracoes' ? (
+                      <KitchenConfigPage
+                        config={cozinhaConfig}
+                        cozinhaForm={cozinhaForm}
+                        setCozinhaForm={setCozinhaForm}
+                        estacaoForm={estacaoForm}
+                        setEstacaoForm={setEstacaoForm}
+                        onSaveConfig={saveCozinhaConfig}
+                        onSaveStation={saveEstacaoCozinha}
+                        onDeleteStation={deleteEstacaoCozinha}
+                      />
+                    ) : null}
+
                     {adminPage === 'configuracoes' ? (
                       <form className="password-reset admin-panel" onSubmit={resetPassword}>
                     <h2>Redefinir senha</h2>
@@ -1557,6 +1777,25 @@ export function App() {
                         value={itemForm.categoria}
                         onChange={(event) => setItemForm({ ...itemForm, categoria: event.target.value })}
                       />
+                      <input
+                        min="0"
+                        placeholder="Tempo de preparo (min)"
+                        type="number"
+                        value={itemForm.tempoPreparoMinutos}
+                        onChange={(event) => setItemForm({ ...itemForm, tempoPreparoMinutos: event.target.value })}
+                      />
+                      <select
+                        value={itemForm.cozinhaEstacaoId}
+                        onChange={(event) => setItemForm({ ...itemForm, cozinhaEstacaoId: event.target.value })}
+                        disabled={cozinhaForm.modoOperacao !== 'avancado'}
+                      >
+                        <option value="">Sem estação específica</option>
+                        {(cozinhaConfig?.estacoes || []).map((estacao) => (
+                          <option key={estacao.id} value={estacao.id}>
+                            {estacao.nome}
+                          </option>
+                        ))}
+                      </select>
                       <select
                         value={itemForm.cardapioId}
                         onChange={(event) => setItemForm({ ...itemForm, cardapioId: event.target.value })}
@@ -1586,7 +1825,18 @@ export function App() {
                         <button
                           type="button"
                           className="ghost"
-                          onClick={() => setItemForm({ id: null, nome: '', descricao: '', imagem: '', preco: '', categoria: '', disponivel: true, cardapioId: itemForm.cardapioId })}
+                          onClick={() => setItemForm({
+                            id: null,
+                            nome: '',
+                            descricao: '',
+                            imagem: '',
+                            preco: '',
+                            categoria: '',
+                            disponivel: true,
+                            cardapioId: itemForm.cardapioId,
+                            tempoPreparoMinutos: 0,
+                            cozinhaEstacaoId: '',
+                          })}
                         >
                           Cancelar edição
                         </button>
@@ -1600,6 +1850,7 @@ export function App() {
                           <div>
                             <strong>{item.nome}</strong>
                             <small>{item.categoria} · {formatMoney(item.preco)}</small>
+                            <small>{Number(item.tempo_preparo_minutos || item.tempoPreparoMinutos || 0)} min · {item.cozinha_estacao_nome || item.cozinhaEstacaoNome || 'Sem estação'}</small>
                             <span className={`status ${item.disponivel ? 'pronto' : 'entregue'}`}>
                               {item.disponivel ? 'Disponível' : 'Indisponível'}
                             </span>
@@ -1608,7 +1859,12 @@ export function App() {
                             <button
                               type="button"
                               className="ghost"
-                              onClick={() => setItemForm({ ...item, cardapioId: itemForm.cardapioId })}
+                              onClick={() => setItemForm({
+                                ...item,
+                                cardapioId: itemForm.cardapioId,
+                                tempoPreparoMinutos: item.tempo_preparo_minutos || item.tempoPreparoMinutos || 0,
+                                cozinhaEstacaoId: item.cozinha_estacao_id || item.cozinhaEstacaoId || '',
+                              })}
                             >
                               Editar
                             </button>
