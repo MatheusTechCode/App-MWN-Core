@@ -134,8 +134,6 @@ create table if not exists historico_atendimento (
 create index if not exists idx_comandas_mesa_status on comandas(mesa_id, status);
 create index if not exists idx_pedidos_status on pedidos(status);
 create index if not exists idx_historico_status_pedido on historico_status_pedido(pedido_id, criado_em);
-create index if not exists idx_itens_pedido_status on itens_pedido(status);
-create index if not exists idx_itens_cardapio_estacao on itens_cardapio(cozinha_estacao_id);
 
 insert into cozinha_configuracoes (
   modo_operacao,

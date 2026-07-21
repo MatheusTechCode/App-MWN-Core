@@ -64,11 +64,14 @@ function createSqlitePool(DatabaseSync) {
     { name: 'iniciado_preparo_em', sql: 'alter table itens_pedido add column iniciado_preparo_em text' },
     { name: 'pronto_em', sql: 'alter table itens_pedido add column pronto_em text' },
     { name: 'entregue_em', sql: 'alter table itens_pedido add column entregue_em text' },
-    { name: 'atualizado_em', sql: 'alter table itens_pedido add column atualizado_em text not null default current_timestamp' },
+    { name: 'atualizado_em', sql: 'alter table itens_pedido add column atualizado_em text' },
   ]);
+  database.exec("update itens_pedido set atualizado_em = current_timestamp where atualizado_em is null or atualizado_em = ''");
   database.exec(
     "update itens_pedido set status = (select status from pedidos where pedidos.id = itens_pedido.pedido_id) where status is null or status = ''",
   );
+  database.exec('create index if not exists idx_itens_pedido_status on itens_pedido(status)');
+  database.exec('create index if not exists idx_itens_cardapio_estacao on itens_cardapio(cozinha_estacao_id)');
   database.exec(
     "insert into cozinha_configuracoes (modo_operacao, agrupar_entrega_mesa, agrupar_producao_semelhantes, tolerancia_minutos, alerta_fila_minutos, perfis_visao_consolidada) select 'simples', 1, 1, 3, 10, 'garcom' where not exists (select 1 from cozinha_configuracoes)",
   );
