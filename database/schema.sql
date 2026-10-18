@@ -24,9 +24,13 @@ create table if not exists comandas (
   nome_cliente varchar(120) not null,
   codigo_cliente uuid not null,
   status varchar(30) not null default 'aberta' check (status in ('aberta', 'fechada')),
+  pagamento_solicitado_em timestamptz,
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now()
 );
+
+alter table comandas
+  add column if not exists pagamento_solicitado_em timestamptz;
 
 create table if not exists cardapios (
   id bigserial primary key,
@@ -152,11 +156,27 @@ create table if not exists pagamentos (
   valor numeric(10, 2) not null check (valor >= 0),
   forma_pagamento varchar(40) not null default 'dinheiro',
   status varchar(30) not null default 'pendente',
+  provedor varchar(40),
+  id_externo varchar(120),
+  chave_idempotencia varchar(80),
+  pix_copia_cola text,
+  pix_qr_code_base64 text,
+  pix_ticket_url text,
+  expira_em timestamptz,
   criado_em timestamptz not null default now()
 );
 
 alter table pagamentos
   add column if not exists forma_pagamento varchar(40) not null default 'dinheiro';
+
+alter table pagamentos add column if not exists provedor varchar(40);
+alter table pagamentos add column if not exists id_externo varchar(120);
+alter table pagamentos add column if not exists chave_idempotencia varchar(80);
+alter table pagamentos add column if not exists pix_copia_cola text;
+alter table pagamentos add column if not exists pix_qr_code_base64 text;
+alter table pagamentos add column if not exists pix_ticket_url text;
+alter table pagamentos add column if not exists expira_em timestamptz;
+create unique index if not exists idx_pagamentos_provedor_externo on pagamentos(provedor, id_externo) where id_externo is not null;
 
 create table if not exists historico_status_pedido (
   id bigserial primary key,

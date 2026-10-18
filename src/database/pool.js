@@ -58,6 +58,18 @@ function createSqlitePool(DatabaseSync) {
     { name: 'urgente_motivo', sql: 'alter table pedidos add column urgente_motivo text' },
     { name: 'urgente_em', sql: 'alter table pedidos add column urgente_em text' },
   ]);
+  ensureSqliteColumns(database, 'comandas', [
+    { name: 'pagamento_solicitado_em', sql: 'alter table comandas add column pagamento_solicitado_em text' },
+  ]);
+  ensureSqliteColumns(database, 'pagamentos', [
+    { name: 'provedor', sql: 'alter table pagamentos add column provedor text' },
+    { name: 'id_externo', sql: 'alter table pagamentos add column id_externo text' },
+    { name: 'chave_idempotencia', sql: 'alter table pagamentos add column chave_idempotencia text' },
+    { name: 'pix_copia_cola', sql: 'alter table pagamentos add column pix_copia_cola text' },
+    { name: 'pix_qr_code_base64', sql: 'alter table pagamentos add column pix_qr_code_base64 text' },
+    { name: 'pix_ticket_url', sql: 'alter table pagamentos add column pix_ticket_url text' },
+    { name: 'expira_em', sql: 'alter table pagamentos add column expira_em text' },
+  ]);
   ensureSqliteColumns(database, 'itens_pedido', [
     { name: 'status', sql: "alter table itens_pedido add column status text not null default 'Na fila'" },
     { name: 'urgente', sql: 'alter table itens_pedido add column urgente integer not null default 0' },

@@ -18,7 +18,7 @@ export const comandaController = {
   }),
 
   listByMesa: asyncHandler(async (req, res) => {
-    res.json(await listarComandasDaMesa(req.params.mesaToken));
+    res.json(await listarComandasDaMesa(req.params.mesaToken, req.query));
   }),
 
   create: asyncHandler(async (req, res) => {

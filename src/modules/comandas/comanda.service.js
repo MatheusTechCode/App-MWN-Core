@@ -14,9 +14,9 @@ export async function listarComandasAbertas() {
   return listComandasAbertas();
 }
 
-export async function listarComandasDaMesa(mesaToken) {
+export async function listarComandasDaMesa(mesaToken, identidade) {
   const mesa = await obterMesaPorToken(mesaToken);
-  return listComandasByMesa(mesa.id);
+  return listComandasByMesa(mesa.id, identidade);
 }
 
 export async function criarComanda({ mesaToken, nomeCliente }) {

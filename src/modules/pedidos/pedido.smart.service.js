@@ -50,12 +50,12 @@ const itemTransitions = {
   },
 };
 
-export async function listarPedidosCliente(mesaToken) {
+export async function listarPedidosCliente(mesaToken, identidade) {
   if (!mesaToken) {
     throw new AppError('Token da mesa é obrigatório.');
   }
 
-  return listPedidosByMesaToken(mesaToken);
+  return listPedidosByMesaToken(mesaToken, identidade);
 }
 
 export async function listarPedidosParaOperacao() {
@@ -71,7 +71,7 @@ export async function listarPainelPedidosOperacao(usuario) {
   return montarPainelCozinha(pedidos, configuracao, usuario);
 }
 
-export async function criarPedido({ comandaId, mesaToken, itens, observacao, criadoPor = 'cliente' }) {
+export async function criarPedido({ comandaId, mesaToken, codigoCliente, itens, observacao, criadoPor = 'cliente' }) {
   const comanda = await findComandaById(comandaId);
 
   if (!comanda || comanda.status !== 'aberta') {
@@ -82,6 +82,10 @@ export async function criarPedido({ comandaId, mesaToken, itens, observacao, cri
 
   if (Number(comanda.mesa_id) !== Number(mesa.id)) {
     throw new AppError('Comanda n\u00e3o pertence \u00e0 mesa informada.', 403);
+  }
+
+  if (criadoPor === 'cliente' && comanda.codigo_cliente !== codigoCliente) {
+    throw new AppError('Este dispositivo não tem acesso a esta comanda.', 403);
   }
 
   // Each customer submission stays a separate order on the same tab.
@@ -105,8 +109,8 @@ export async function editarPedidoOperacao(id, { itens, usuario }) {
   return updatePedidoItens(id, itens, usuario.perfil);
 }
 
-export async function excluirPedidoCliente(id, { mesaToken }) {
-  if (!mesaToken) {
+export async function excluirPedidoCliente(id, { mesaToken, codigoCliente }) {
+  if (!mesaToken || !codigoCliente) {
     throw new AppError('Token da mesa é obrigatório.');
   }
 
@@ -116,6 +120,10 @@ export async function excluirPedidoCliente(id, { mesaToken }) {
 
   if (pedido.token_qr !== mesaToken) {
     throw new AppError('Pedido não pertence à mesa informada.', 403);
+  }
+
+  if (pedido.codigo_cliente !== codigoCliente) {
+    throw new AppError('Este dispositivo não tem acesso a esta comanda.', 403);
   }
 
   return deletePedido(id, 'cliente');

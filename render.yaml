@@ -15,6 +15,10 @@ services:
         sync: false
       - key: DATABASE_URL_UNPOOLED
         sync: false
+      - key: MERCADO_PAGO_ACCESS_TOKEN
+        sync: false
+      - key: MERCADO_PAGO_WEBHOOK_SECRET
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_NAME

@@ -100,6 +100,9 @@ Exemplo: se o Vite mostrar `Network: http://192.168.1.102:5173/`, use `http://19
 - Admin pode editar ou excluir pedidos ainda não entregues.
 - Garçom move pedidos de `Pronto` para `Entregue`.
 - Garçom ou admin visualiza comandas abertas e registra pagamento, encerrando a comanda.
+- Em uma mesma mesa, cada cliente abre uma comanda identificada pelo próprio nome; pedidos e pagamentos ficam separados por comanda.
+- O cliente pode solicitar o garçom ou gerar um QR Pix online pelo Mercado Pago; o pagamento só é confirmado após validação do webhook e consulta do status ao provedor.
+- Admin e garçom acompanham pedidos e pagamentos por comanda, registram recebimentos parciais e fecham a conta quando o saldo chega a zero.
 - Admin pode redefinir senha de usuários operacionais pela tela de operação.
 - Admin pode recuperar a própria senha usando o código de recuperação configurado no `.env`.
 - Admin pode gerenciar garçons: criar, editar e excluir/desativar.
@@ -155,6 +158,10 @@ O `render.yaml` configura o ComandaX no plano gratuito do Render e usa PostgreSQ
 3. Ao criar o Blueprint, preencha os campos secretos solicitados: `DATABASE_URL` e `DATABASE_URL_UNPOOLED` com as URLs correspondentes do Neon, os e-mails e senhas fortes do admin, cozinha e garçom, e `ADMIN_RECOVERY_CODE`. Não compartilhe esses segredos nem os salve no GitHub.
 4. Aguarde o deploy. O schema e os três usuários iniciais são criados automaticamente na primeira inicialização. Usuários já existentes não têm a senha sobrescrita.
 5. Abra `https://SEU-SERVICO.onrender.com/api/health`; o resultado esperado é `status: ok`. A URL `https://SEU-SERVICO.onrender.com/admin` abre a operação e os QR Codes do cliente usam a mesma base, por exemplo `/mwn_qr_a8F3kP7xQ2L9`.
+
+### Pix online pelo Mercado Pago
+
+Para habilitar Pix, cadastre no Render as variáveis `MERCADO_PAGO_ACCESS_TOKEN` (credencial privada da aplicação Mercado Pago) e `MERCADO_PAGO_WEBHOOK_SECRET` (chave secreta de Webhooks dessa aplicação). A API recebe notificações em `https://SEU-SERVICO.onrender.com/api/pagamentos/mercado-pago/webhook`; habilite o tópico de pagamentos para essa URL na área de integrações do Mercado Pago. O serviço informa a URL de notificação ao criar a cobrança. Use primeiro as credenciais de teste e conclua um pagamento de teste antes de trocar para produção. O cliente informa um e-mail para gerar a cobrança. Cada QR expira em 30 minutos; enquanto houver um Pix válido pendente, não é possível registrar outro recebimento nessa comanda.
 
 O Render define a porta pública em `PORT`, que o servidor usa automaticamente. Para usar domínio próprio depois, adicione-o em **Settings → Custom Domains** e configure os DNS indicados; o domínio precisa ser registrado separadamente.
 ## Demo gratuita com SQLite

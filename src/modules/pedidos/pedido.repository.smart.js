@@ -9,7 +9,8 @@ export async function findPedidoById(id) {
 
 export async function findPedidoContextById(id) {
   const result = await query(
-    `select p.id, p.comanda_id, p.status, c.mesa_id, c.status as comanda_status, m.token_qr, p.urgente
+    `select p.id, p.comanda_id, p.status, c.mesa_id, c.codigo_cliente,
+       c.status as comanda_status, m.token_qr, p.urgente
      from pedidos p
      join comandas c on c.id = p.comanda_id
      join mesas m on m.id = c.mesa_id
@@ -77,11 +78,14 @@ export async function findUltimoPeridoNaFilaPorComanda(comandaId) {
   };
 }
 
-export async function listPedidosByMesaToken(mesaToken) {
+export async function listPedidosByMesaToken(mesaToken, { comandaId, codigoCliente }) {
+  if (!codigoCliente) return [];
+  const commandIdFilter = comandaId ? 'and c.id = $3' : "and c.status = 'aberta'";
+  const params = comandaId ? [mesaToken, codigoCliente, comandaId] : [mesaToken, codigoCliente];
   const rows = await listPedidosBase(
     `where m.token_qr = $1
-       and c.status = 'aberta'`,
-    [mesaToken],
+       and c.codigo_cliente = $2 ${commandIdFilter}`,
+    params,
   );
 
   return attachStatusTimings(groupPedidos(rows));

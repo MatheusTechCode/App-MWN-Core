@@ -26,7 +26,7 @@ import {
 
 export const pedidoController = {
   listByMesa: asyncHandler(async (req, res) => {
-    res.json(await listarPedidosCliente(req.params.mesaToken));
+    res.json(await listarPedidosCliente(req.params.mesaToken, req.query));
   }),
 
   listOperation: asyncHandler(async (req, res) => {

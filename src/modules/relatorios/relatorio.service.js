@@ -38,6 +38,9 @@ export async function getSalesDashboard() {
   ]);
   const todayKey = dateKey(new Date());
   const todaySales = sales.filter((sale) => dateKey(sale.criado_em) === todayKey);
+  const comandasQuitadasHoje = new Set(
+    todaySales.filter((sale) => sale.comanda_status === 'fechada').map((sale) => sale.comanda_id),
+  );
   const todayItems = saleItems.filter((item) => dateKey(item.criado_em) === todayKey);
   const totalToday = todaySales.reduce((sum, sale) => sum + Number(sale.valor), 0);
   const itemCountToday = todayItems.reduce((sum, item) => sum + Number(item.quantidade), 0);
@@ -68,6 +71,7 @@ export async function getSalesDashboard() {
 
   const paymentTotals = new Map();
   const tableTotals = new Map();
+  const tableComandas = new Map();
   for (const sale of todaySales) {
     const paymentMethod = sale.forma_pagamento || 'não informado';
     paymentTotals.set(paymentMethod, (paymentTotals.get(paymentMethod) || 0) + Number(sale.valor));
@@ -77,17 +81,25 @@ export async function getSalesDashboard() {
       comandas: 0,
       total: 0,
     };
-    currentTable.comandas += 1;
     currentTable.total += Number(sale.valor);
     tableTotals.set(sale.mesa_numero, currentTable);
+    if (sale.comanda_status === 'fechada') {
+      const comandasDaMesa = tableComandas.get(sale.mesa_numero) || new Set();
+      comandasDaMesa.add(sale.comanda_id);
+      tableComandas.set(sale.mesa_numero, comandasDaMesa);
+    }
+  }
+
+  for (const [mesa, total] of tableTotals) {
+    total.comandas = tableComandas.get(mesa)?.size || 0;
   }
 
   return {
     geradoEm: new Date().toISOString(),
     resumo: {
       totalVendas: roundMoney(totalToday),
-      ticketMedio: roundMoney(todaySales.length ? totalToday / todaySales.length : 0),
-      comandasFechadas: todaySales.length,
+      ticketMedio: roundMoney(comandasQuitadasHoje.size ? totalToday / comandasQuitadasHoje.size : 0),
+      comandasFechadas: comandasQuitadasHoje.size,
       itensVendidos: itemCountToday,
     },
     vendasUltimosSeteDias: salesByDay,

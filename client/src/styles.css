@@ -1609,6 +1609,58 @@ small {
   gap: var(--spacing-5);
 }
 
+.payment-account-header,
+.account-order > header,
+.account-order-item,
+.comanda-payment-summary {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-2);
+  justify-content: space-between;
+}
+
+.account-orders,
+.account-payments {
+  border-top: 1px solid var(--color-border-soft);
+  display: grid;
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-3);
+}
+
+.account-order {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+}
+
+.account-order-item {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.account-order-item strong {
+  white-space: nowrap;
+}
+
+.comanda-payment-summary {
+  color: var(--color-text-secondary);
+  padding: 0 var(--spacing-2);
+}
+
+.payment-register-form {
+  border-top: 1px solid var(--color-border-soft);
+  padding-top: var(--spacing-3);
+}
+
+.payment-account-header .status {
+  background: var(--status-queue);
+  color: var(--color-text);
+  white-space: normal;
+}
+
 .analytics-page {
   display: grid;
   gap: var(--spacing-5);
@@ -3014,4 +3066,47 @@ button.danger-button:hover {
   .mobile-cart-bar.cart-updated {
     animation: none;
   }
+}
+.pix-email-field {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  color: var(--text-muted, #64748b);
+  font-size: 0.9rem;
+}
+
+.pix-email-field input,
+.pix-payment-box textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #dbe2ea);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.pix-payment-box {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--border, #dbe2ea);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+}
+
+.pix-payment-box img {
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.pix-payment-box textarea {
+  min-height: 88px;
+  resize: vertical;
+  font-size: 0.78rem;
+}
+
+.pix-payment-box small {
+  text-align: center;
 }

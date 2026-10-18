@@ -24,6 +24,7 @@ create table if not exists comandas (
   nome_cliente text not null,
   codigo_cliente text not null,
   status text not null default 'aberta' check (status in ('aberta', 'fechada')),
+  pagamento_solicitado_em text,
   criado_em text not null default current_timestamp,
   atualizado_em text not null default current_timestamp
 );
@@ -113,6 +114,13 @@ create table if not exists pagamentos (
   valor real not null check (valor >= 0),
   forma_pagamento text not null default 'dinheiro',
   status text not null default 'pendente',
+  provedor text,
+  id_externo text,
+  chave_idempotencia text,
+  pix_copia_cola text,
+  pix_qr_code_base64 text,
+  pix_ticket_url text,
+  expira_em text,
   criado_em text not null default current_timestamp
 );
 

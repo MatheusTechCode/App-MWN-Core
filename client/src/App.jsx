@@ -36,6 +36,7 @@ export function App() {
   const knownQueueOrderIds = useRef(new Set());
   const queueOrdersInitialized = useRef(false);
   const [nomeCliente, setNomeCliente] = useState('');
+  const [pixEmail, setPixEmail] = useState('');
   const [showNewComanda, setShowNewComanda] = useState(false);
   const [novaComandaOperacao, setNovaComandaOperacao] = useState({ mesaToken: '', nomeCliente: '' });
   const [login, setLogin] = useState({ login: '', senha: '' });
@@ -96,11 +97,24 @@ export function App() {
   }
 
   async function loadCliente() {
+    let comandaId = localStorage.getItem(`comandax_comanda_${mesaToken}`);
+    let codigoCliente = comandaId ? localStorage.getItem(`comandax_codigo_${comandaId}`) : null;
+    if (!codigoCliente) {
+      const savedCodes = Object.keys(localStorage).filter((key) => key.startsWith('comandax_codigo_'));
+      const previousCodeKey = savedCodes.at(-1);
+      if (previousCodeKey) {
+        comandaId = previousCodeKey.slice('comandax_codigo_'.length);
+        codigoCliente = localStorage.getItem(previousCodeKey);
+      }
+    }
+    const identidade = comandaId && codigoCliente
+      ? `?comandaId=${encodeURIComponent(comandaId)}&codigoCliente=${encodeURIComponent(codigoCliente)}`
+      : codigoCliente ? `?codigoCliente=${encodeURIComponent(codigoCliente)}` : '';
     const [mesaData, cardapioData, comandasData, pedidosData] = await Promise.all([
       api(`/mesas/qr/${mesaToken}`),
       api('/cardapios'),
-      api(`/comandas/mesa/${mesaToken}`),
-      api(`/pedidos/mesa/${mesaToken}`),
+      api(`/comandas/mesa/${mesaToken}${identidade}`),
+      api(`/pedidos/mesa/${mesaToken}${identidade}`),
     ]);
 
     setMesa(mesaData);
@@ -111,9 +125,10 @@ export function App() {
     setCardapio(listaCardapio);
     setComandas(listaComandas);
     setPedidos(listaPedidos);
-    if (!selectedComanda && listaComandas[0]) {
-      setSelectedComanda(listaComandas[0].id);
+    if (listaComandas[0]) {
+      localStorage.setItem(`comandax_comanda_${mesaToken}`, String(listaComandas[0].id));
     }
+    setSelectedComanda(listaComandas[0]?.id || null);
   }
 
   async function loadOperacao() {
@@ -336,6 +351,7 @@ export function App() {
       method: 'POST',
       body: JSON.stringify({ mesaToken, nomeCliente }),
     });
+    localStorage.setItem(`comandax_comanda_${mesaToken}`, String(nova.id));
     localStorage.setItem(`comandax_codigo_${nova.id}`, nova.codigo_cliente);
     setNomeCliente('');
     setShowNewComanda(false);
@@ -353,7 +369,12 @@ export function App() {
 
     await api('/pedidos', {
       method: 'POST',
-      body: JSON.stringify({ comandaId: selectedComanda, mesaToken, itens: cart }),
+      body: JSON.stringify({
+        comandaId: selectedComanda,
+        mesaToken,
+        codigoCliente: localStorage.getItem(`comandax_codigo_${selectedComanda}`),
+        itens: cart,
+      }),
     });
     setCart([]);
     setShowMobileCart(false);
@@ -492,13 +513,44 @@ export function App() {
     await loadOperacao();
   }
 
-  async function registrarPagamento(comanda, formaPagamento) {
-    await api('/pagamentos', {
+  async function registrarPagamento(comanda, formaPagamento, valor) {
+    const result = await api('/pagamentos', {
       method: 'POST',
-      body: JSON.stringify({ comandaId: comanda.id, formaPagamento }),
+      body: JSON.stringify({ comandaId: comanda.id, formaPagamento, valor: Number(valor) }),
     });
-    setMessage(`Pagamento da comanda ${comanda.nome_cliente} confirmado.`);
+    setMessage(result.comanda?.saldo > 0
+      ? `Parcela registrada. Saldo restante: ${formatMoney(result.comanda.saldo)}.`
+      : `Comanda de ${comanda.nome_cliente} quitada.`);
     await loadOperacao();
+  }
+
+  async function solicitarAtendimentoPagamento(comanda) {
+    const codigoCliente = localStorage.getItem(`comandax_codigo_${comanda.id}`);
+    if (!codigoCliente) {
+      setMessage('Esta comanda não pertence a este dispositivo.');
+      return;
+    }
+    await api('/pagamentos/solicitar-atendimento', {
+      method: 'POST',
+      body: JSON.stringify({ comandaId: comanda.id, mesaToken, codigoCliente }),
+    });
+    setMessage('Garçom solicitado para fechar esta comanda.');
+    await loadCliente();
+  }
+
+  async function pagarPixOnline(comanda) {
+    const codigoCliente = localStorage.getItem(`comandax_codigo_${comanda.id}`);
+    if (!codigoCliente) {
+      setMessage('Esta comanda não pertence a este dispositivo.');
+      return;
+    }
+    const pix = await api('/pagamentos/pix', {
+      method: 'POST',
+      body: JSON.stringify({ comandaId: comanda.id, mesaToken, codigoCliente, email: pixEmail }),
+    });
+    setMessage('Pix gerado. Escaneie o QR Code ou copie o código para pagar.');
+    await loadCliente();
+    return pix;
   }
 
   async function transferirComanda(comanda, mesaId) {
@@ -583,7 +635,10 @@ export function App() {
   async function deletePedidoCliente(pedidoId) {
     await api(`/pedidos/${pedidoId}`, {
       method: 'DELETE',
-      body: JSON.stringify({ mesaToken }),
+      body: JSON.stringify({
+        mesaToken,
+        codigoCliente: localStorage.getItem(`comandax_codigo_${selectedComanda}`),
+      }),
     });
     setMessage('Pedido excluído com sucesso.');
     await loadCliente();
@@ -859,6 +914,11 @@ export function App() {
       setClientScreen('comanda');
       return;
     }
+    if (screen === 'cardapio' && comandaAtual?.status !== 'aberta') {
+      setMessage('Esta comanda já foi encerrada. Abra uma nova comanda para pedir novamente.');
+      setClientScreen('comanda');
+      return;
+    }
 
     setClientScreen(screen);
   }
@@ -935,25 +995,12 @@ export function App() {
                   </form>
                 ) : null}
 
-                {comandas.length > 1 ? (
-                  <label className="comanda-selector">
-                    Visualizando a comanda de
-                    <select value={selectedComanda || ''} onChange={(event) => setSelectedComanda(Number(event.target.value))}>
-                      {comandas.map((comanda) => (
-                        <option key={comanda.id} value={comanda.id}>
-                          {comanda.nome_cliente}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-
                 {comandaAtual ? (
                   <article className="client-comanda-card">
                     <header>
                       <div>
                         <ReceiptText size={20} />
-                        <span>Comanda aberta</span>
+                        <span>{comandaAtual.status === 'aberta' ? 'Comanda aberta' : 'Comanda encerrada'}</span>
                       </div>
                       <h1>{comandaAtual.nome_cliente}</h1>
                     </header>
@@ -984,20 +1031,46 @@ export function App() {
                       <strong>{formatMoney(comandaAtual.total)}</strong>
                     </footer>
 
+                    {Number(comandaAtual.valorPago) > 0 ? (
+                      <div className="comanda-payment-summary">
+                        <span>Já pago: {formatMoney(comandaAtual.valorPago)}</span>
+                        <strong>Saldo: {formatMoney(comandaAtual.saldo)}</strong>
+                      </div>
+                    ) : null}
+
                     <div className="comanda-actions">
-                      <button type="button" onClick={() => changeClientScreen('cardapio')}>
+                      {comandaAtual.status === 'aberta' ? <button type="button" onClick={() => changeClientScreen('cardapio')}>
                         <Utensils size={18} /> Ver cardápio
-                      </button>
-                      {comandaItems.length > 0 ? (
-                        <button
-                          className="ghost"
-                          type="button"
-                          onClick={() => setMessage('Para fechar e pagar a comanda, solicite o atendimento do garçom.')}
-                        >
-                          <CreditCard size={18} /> Solicitar fechamento
-                        </button>
+                      </button> : <span className="status">Comanda quitada</span>}
+                      {comandaAtual.status === 'aberta' && comandaItems.length > 0 ? (
+                        <>
+                          <label className="pix-email-field">
+                            E-mail para o Pix
+                            <input type="email" autoComplete="email" value={pixEmail} onChange={(event) => setPixEmail(event.target.value)} placeholder="voce@exemplo.com" />
+                          </label>
+                          <button type="button" onClick={() => pagarPixOnline(comandaAtual)} disabled={!pixEmail.includes('@') || Number(comandaAtual.saldo ?? comandaAtual.total) <= 0}>
+                            <CreditCard size={18} /> Pagar com Pix online
+                          </button>
+                          <button
+                            className="ghost"
+                            type="button"
+                            onClick={() => solicitarAtendimentoPagamento(comandaAtual)}
+                            disabled={Boolean(comandaAtual.pagamento_solicitado_em)}
+                          >
+                            <CreditCard size={18} /> {comandaAtual.pagamento_solicitado_em ? 'Garçom solicitado' : 'Solicitar garçom para pagar'}
+                          </button>
+                        </>
                       ) : null}
                     </div>
+                    {comandaAtual.pagamentos?.filter((payment) => payment.status === 'pendente' && payment.pix_copia_cola).map((payment) => (
+                      <section className="pix-payment-box" key={payment.id}>
+                        <strong>Pix aguardando pagamento · {formatMoney(payment.valor)}</strong>
+                        {payment.pix_qr_code_base64 ? <img src={`data:image/png;base64,${payment.pix_qr_code_base64}`} alt="QR Code Pix" /> : null}
+                        <textarea readOnly value={payment.pix_copia_cola} aria-label="Código Pix copia e cola" />
+                        <button type="button" onClick={() => navigator.clipboard.writeText(payment.pix_copia_cola).then(() => setMessage('Código Pix copiado.'))}>Copiar código Pix</button>
+                        <small>O status é atualizado automaticamente após a confirmação pelo Mercado Pago. Válido até {payment.expira_em ? new Date(payment.expira_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'o vencimento'}.</small>
+                      </section>
+                    ))}
                   </article>
                 ) : (
                   <div className="comanda-welcome">
@@ -2210,13 +2283,16 @@ function SalesDashboard({ data, onRefresh }) {
 
 function PaymentCard({ cardapio, comanda, mesas, user, onCreateOrder, onPay, onTransfer }) {
   const [formaPagamento, setFormaPagamento] = useState('pix');
+  const [valorPagamento, setValorPagamento] = useState('');
   const [mesaDestinoId, setMesaDestinoId] = useState('');
   const itensCardapio = cardapio.flatMap((grupo) => grupo.itens);
-  const [pedido, setPedido] = useState({
-    itemCardapioId: itensCardapio[0]?.id || '',
-    quantidade: 1,
-  });
-  const canPay = ['admin', 'garcom'].includes(user.perfil) && Number(comanda.total) > 0;
+  const [pedido, setPedido] = useState({ itemCardapioId: itensCardapio[0]?.id || '', quantidade: 1 });
+  const saldo = Number(comanda.saldo ?? comanda.total);
+  const canPay = ['admin', 'garcom'].includes(user.perfil) && saldo > 0;
+
+  useEffect(() => {
+    setValorPagamento(saldo > 0 ? saldo.toFixed(2) : '');
+  }, [comanda.id, saldo]);
 
   useEffect(() => {
     if (!pedido.itemCardapioId && itensCardapio[0]) {
@@ -2225,79 +2301,108 @@ function PaymentCard({ cardapio, comanda, mesas, user, onCreateOrder, onPay, onT
   }, [itensCardapio, pedido.itemCardapioId]);
 
   return (
-    <article className="order-card">
-      <strong>Mesa {comanda.mesa_numero} · {comanda.nome_cliente}</strong>
+    <article className="order-card payment-account-card">
+      <header className="payment-account-header">
+        <strong>Mesa {comanda.mesa_numero} · {comanda.nome_cliente}</strong>
+        {comanda.pagamento_solicitado_em ? <span className="status urgente">Pediu o garçom para pagar</span> : null}
+      </header>
       <div className="total">
-        <span>Total</span>
-        <strong>{formatMoney(comanda.total)}</strong>
+        <span>Total {formatMoney(comanda.total)}</span>
+        <span>Pago {formatMoney(comanda.valorPago || 0)}</span>
+        <strong>Saldo {formatMoney(saldo)}</strong>
       </div>
+
+      <section className="account-orders">
+        <strong>Pedidos desta comanda</strong>
+        {comanda.pedidos?.length ? comanda.pedidos.map((order) => (
+          <article className="account-order" key={order.id}>
+            <header><strong>Pedido #{order.id}</strong><span>{order.status}</span></header>
+            {order.itens.map((item, index) => (
+              <div className="account-order-item" key={`${order.id}-${item.itemCardapioId}-${index}`}>
+                <span>{item.quantidade}× {item.nome}{item.observacao ? ` · ${item.observacao}` : ''}</span>
+                <strong>{formatMoney(Number(item.quantidade) * Number(item.precoUnitario))}</strong>
+              </div>
+            ))}
+            {order.observacao ? <small>{order.observacao}</small> : null}
+          </article>
+        )) : <p className="muted">Ainda não há pedidos nesta comanda.</p>}
+      </section>
+
+      {comanda.pagamentos?.length ? (
+        <section className="account-payments">
+          <strong>Pagamentos registrados</strong>
+          {comanda.pagamentos.map((payment) => (
+            <div className="account-order-item" key={payment.id}>
+              <span>{formatPaymentMethod(payment.forma_pagamento)} · {payment.status}</span>
+              <strong>{formatMoney(payment.valor)}</strong>
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      <form
+        className="waiter-order payment-register-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onPay(comanda, formaPagamento, valorPagamento);
+        }}
+      >
+        <strong>Registrar recebimento (permite dividir)</strong>
+        <input
+          aria-label="Valor recebido"
+          inputMode="decimal"
+          min="0.01"
+          max={saldo.toFixed(2)}
+          step="0.01"
+          type="number"
+          value={valorPagamento}
+          onChange={(event) => setValorPagamento(event.target.value)}
+          required
+        />
+        <select value={formaPagamento} onChange={(event) => setFormaPagamento(event.target.value)}>
+          <option value="pix">Pix</option>
+          <option value="cartao_debito">Cartão de débito</option>
+          <option value="cartao_credito">Cartão de crédito</option>
+          <option value="dinheiro">Dinheiro</option>
+        </select>
+        <button type="submit" disabled={!canPay || !valorPagamento || Number(valorPagamento) > saldo}>
+          Registrar pagamento
+        </button>
+      </form>
+
       <form
         className="waiter-order"
         onSubmit={(event) => {
           event.preventDefault();
-          onCreateOrder({
-            comandaId: comanda.id,
-            itemCardapioId: pedido.itemCardapioId,
-            quantidade: Number(pedido.quantidade),
-          });
-          setPedido({ ...pedido, quantidade: 1 });
+          onCreateOrder({ comandaId: comanda.id, itemCardapioId: pedido.itemCardapioId, quantidade: Number(pedido.quantidade) });
+          setPedido((current) => ({ ...current, quantidade: 1 }));
         }}
       >
-        <select
-          value={pedido.itemCardapioId}
-          onChange={(event) => setPedido({ ...pedido, itemCardapioId: event.target.value })}
-        >
+        <select value={pedido.itemCardapioId} onChange={(event) => setPedido({ ...pedido, itemCardapioId: event.target.value })}>
           <option value="">Selecionar item</option>
-          {itensCardapio.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.nome} · {formatMoney(item.preco)}
-            </option>
+          {itensCardapio.map((item) => <option key={item.id} value={item.id}>{item.nome} · {formatMoney(item.preco)}</option>)}
+        </select>
+        <input min="1" type="number" value={pedido.quantidade} onChange={(event) => setPedido({ ...pedido, quantidade: event.target.value })} />
+        <button type="submit" disabled={!pedido.itemCardapioId}>Lançar pedido</button>
+      </form>
+
+      <form
+        className="waiter-order"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onTransfer(comanda, mesaDestinoId);
+          setMesaDestinoId('');
+        }}
+      >
+        <strong>Transferir comanda</strong>
+        <select value={mesaDestinoId} onChange={(event) => setMesaDestinoId(event.target.value)}>
+          <option value="">Mesa de destino</option>
+          {mesas.filter((mesa) => mesa.status === 'ativa' && Number(mesa.id) !== Number(comanda.mesa_id)).map((mesa) => (
+            <option key={mesa.id} value={mesa.id}>Mesa {mesa.numero}</option>
           ))}
         </select>
-        <input
-          min="1"
-          type="number"
-          value={pedido.quantidade}
-          onChange={(event) => setPedido({ ...pedido, quantidade: event.target.value })}
-        />
-        <button type="submit" disabled={!pedido.itemCardapioId}>
-          Lançar pedido
-        </button>
+        <button type="submit" disabled={!mesaDestinoId}>Transferir</button>
       </form>
-      <select value={formaPagamento} onChange={(event) => setFormaPagamento(event.target.value)}>
-        <option value="pix">Pix</option>
-        <option value="cartao_debito">Cartão de débito</option>
-        <option value="cartao_credito">Cartão de crédito</option>
-        <option value="dinheiro">Dinheiro</option>
-      </select>
-      <button type="button" disabled={!canPay} onClick={() => onPay(comanda, formaPagamento)}>
-        Confirmar pagamento
-      </button>
-      {['admin', 'garcom'].includes(user.perfil) ? (
-        <form
-          className="waiter-order"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onTransfer(comanda, mesaDestinoId);
-            setMesaDestinoId('');
-          }}
-        >
-          <strong>Transferir comanda</strong>
-          <select value={mesaDestinoId} onChange={(event) => setMesaDestinoId(event.target.value)}>
-            <option value="">Mesa de destino</option>
-            {mesas
-              .filter((mesa) => mesa.status === 'ativa' && Number(mesa.id) !== Number(comanda.mesa_id))
-              .map((mesa) => (
-                <option key={mesa.id} value={mesa.id}>
-                  Mesa {mesa.numero}
-                </option>
-              ))}
-          </select>
-          <button type="submit" disabled={!mesaDestinoId}>
-            Transferir
-          </button>
-        </form>
-      ) : null}
     </article>
   );
 }
