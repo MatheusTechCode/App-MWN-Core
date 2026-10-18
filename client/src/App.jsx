@@ -35,6 +35,8 @@ export function App() {
   const cartFeedbackSequence = useRef(0);
   const knownQueueOrderIds = useRef(new Set());
   const queueOrdersInitialized = useRef(false);
+  const panelRefreshInFlight = useRef(false);
+  const panelRefreshPending = useRef(false);
   const [nomeCliente, setNomeCliente] = useState('');
   const [pixEmail, setPixEmail] = useState('');
   const [showNewComanda, setShowNewComanda] = useState(false);
@@ -152,7 +154,6 @@ export function App() {
     const podeGerenciarComandas = ['admin', 'garcom'].includes(user.perfil);
     const podeVisualizarCardapio = ['admin', 'garcom', 'cozinha'].includes(user.perfil);
     const [
-      pedidosOperacao,
       pedidosPainel,
       comandasAbertas,
       cardapioOperacao,
@@ -163,7 +164,6 @@ export function App() {
       cozinhaConfigData,
       relatorioVendasData,
     ] = await Promise.all([
-      api('/pedidos/operacao'),
       api('/pedidos/operacao/painel'),
       podeGerenciarComandas ? api('/comandas') : Promise.resolve([]),
       podeVisualizarCardapio ? api('/cardapios') : Promise.resolve([]),
@@ -174,7 +174,7 @@ export function App() {
       api('/cozinha/config'),
       user.perfil === 'admin' ? api('/relatorios/vendas') : Promise.resolve(null),
     ]);
-    const listaPedidosOperacao = asArray(pedidosOperacao);
+    const listaPedidosOperacao = asArray(pedidosPainel?.pedidos);
     notifyNewQueueOrders(listaPedidosOperacao);
     setOperacao(listaPedidosOperacao);
     setPainelOperacao(pedidosPainel);
@@ -209,6 +209,28 @@ export function App() {
     }));
   }
 
+  async function refreshPainelPedidos() {
+    if (!user) return;
+    if (panelRefreshInFlight.current) {
+      panelRefreshPending.current = true;
+      return;
+    }
+    panelRefreshInFlight.current = true;
+    try {
+      const panel = await api('/pedidos/operacao/painel');
+      const orders = asArray(panel?.pedidos);
+      notifyNewQueueOrders(orders);
+      setOperacao(orders);
+      setPainelOperacao(panel);
+    } finally {
+      panelRefreshInFlight.current = false;
+      if (panelRefreshPending.current) {
+        panelRefreshPending.current = false;
+        refreshPainelPedidos().catch(() => {});
+      }
+    }
+  }
+
   useEffect(() => {
     if (!isClientRoute) return;
     loadCliente().catch((error) => setMessage(error.message));
@@ -223,7 +245,7 @@ export function App() {
   useEffect(() => {
     if (!isAdminRoute) return undefined;
     loadOperacao().catch((error) => setMessage(error.message));
-    const timer = setInterval(() => loadOperacao().catch(() => {}), 5000);
+    const timer = setInterval(() => refreshPainelPedidos().catch(() => {}), 5000);
     return () => clearInterval(timer);
   }, [isAdminRoute, user]);
 
@@ -451,21 +473,48 @@ export function App() {
   }
 
   async function changeStatus(pedido, status) {
-    await api(`/pedidos/${pedido.id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
-    await loadOperacao();
-  }
-
-  async function changeStationStatus(itens, status) {
-    for (const item of itens) {
-      await api(`/pedidos/itens/${item.id}/status`, {
+    applyLocalOrderStatus(pedido.id, status);
+    try {
+      await api(`/pedidos/${pedido.id}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       });
+      refreshPainelPedidos().catch(() => {});
+    } catch (error) {
+      setMessage(error.message);
+      refreshPainelPedidos().catch(() => {});
     }
-    await loadOperacao();
+  }
+
+  async function changeStationStatus(itens, status) {
+    applyLocalItemStatuses(itens, status);
+    try {
+      await Promise.all(itens.map((item) => api(`/pedidos/itens/${item.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      })));
+      refreshPainelPedidos().catch(() => {});
+    } catch (error) {
+      setMessage(error.message);
+      refreshPainelPedidos().catch(() => {});
+    }
+  }
+
+  function applyLocalOrderStatus(pedidoId, status) {
+    setOperacao((current) => current.map((pedido) => Number(pedido.id) === Number(pedidoId)
+      ? { ...pedido, status, itens: pedido.itens.map((item) => ({ ...item, status })) }
+      : pedido));
+  }
+
+  function applyLocalItemStatuses(itens, status) {
+    const itemIds = new Set(itens.map((item) => Number(item.id)));
+    setOperacao((current) => current.map((pedido) => {
+      if (!pedido.itens.some((item) => itemIds.has(Number(item.id)))) return pedido;
+      const updatedItems = pedido.itens.map((item) => (
+        itemIds.has(Number(item.id)) ? { ...item, status } : item
+      ));
+      return { ...pedido, itens: updatedItems, status: resolveOrderStatus(updatedItems) };
+    }));
   }
 
   async function toggleKitchenOrderUrgency(pedido, urgente) {
@@ -538,8 +587,9 @@ export function App() {
 
   async function deliverMesaOrders(mesa) {
     await api(`/pedidos/mesa/${mesa.mesaNumero}/entregar`, { method: 'POST' });
+    for (const pedido of mesa.pedidos) applyLocalOrderStatus(pedido.id, 'Entregue');
     setMessage(`Todos os pedidos prontos da mesa ${mesa.mesaNumero} foram liberados para entrega.`);
-    await loadOperacao();
+    refreshPainelPedidos().catch(() => {});
   }
 
   async function registrarPagamento(comanda, formaPagamento, valor) {
@@ -2109,6 +2159,14 @@ export function App() {
       ) : null}
     </main>
   );
+}
+
+function resolveOrderStatus(items) {
+  const statuses = items.map((item) => item.status);
+  if (statuses.length > 0 && statuses.every((status) => status === 'Entregue')) return 'Entregue';
+  if (statuses.length > 0 && statuses.every((status) => ['Pronto', 'Entregue'].includes(status))) return 'Pronto';
+  if (statuses.some((status) => ['Em preparo', 'Pronto', 'Entregue'].includes(status))) return 'Em preparo';
+  return 'Na fila';
 }
 
 function ClientOrderStatus({ pedido, onDelete }) {

@@ -77,6 +77,7 @@ export function montarPainelCozinha(pedidos, configuracaoBruta, usuario) {
   const mesas = construirVisaoConsolidada(ativos);
 
   return {
+    pedidos: enriquecidos,
     configuracao,
     resumo: {
       pedidosNaFila: ativos.filter((pedido) => pedido.status === 'Na fila').length,
