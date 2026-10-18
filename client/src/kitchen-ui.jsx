@@ -4,7 +4,9 @@ import {
   BellRing,
   CheckCircle2,
   Clock3,
+  Flame,
   RefreshCcw,
+  RotateCcw,
 } from 'lucide-react';
 import React from 'react';
 
