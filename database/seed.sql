@@ -8,8 +8,10 @@ set token_qr = excluded.token_qr,
     atualizado_em = now();
 
 insert into cardapios (nome, ativo)
-values ('Cardápio principal', true)
-on conflict do nothing;
+select 'Cardápio principal', true
+where not exists (
+  select 1 from cardapios where nome = 'Cardápio principal'
+);
 
 insert into itens_cardapio (nome, descricao, preco, categoria, disponivel)
 select nome, descricao, preco, categoria, disponivel

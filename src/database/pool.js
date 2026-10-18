@@ -126,6 +126,7 @@ if (env.databaseClient === 'postgres') {
 
   try {
     await migrationPool.query(fs.readFileSync(path.join(projectRoot, 'database/schema.sql'), 'utf8'));
+    await migrationPool.query(fs.readFileSync(path.join(projectRoot, 'database/seed.sql'), 'utf8'));
     await migrationPool.query(
       `update itens_pedido ip
        set status = p.status
