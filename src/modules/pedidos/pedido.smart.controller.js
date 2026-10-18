@@ -1,4 +1,5 @@
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { AppError } from '../../utils/AppError.js';
 import {
   alterarStatusItemPedido,
   alterarStatusPedido,
@@ -12,6 +13,7 @@ import {
   listarPainelPedidosOperacao,
   listarPedidosCliente,
   listarPedidosParaOperacao,
+  liberarPedidosMesa,
   retornarItemParaFila,
   retornarPedidoParaFila,
 } from './pedido.smart.service.js';
@@ -25,6 +27,11 @@ import {
 } from './pedido.smart.validation.js';
 
 export const pedidoController = {
+  deliverTable: asyncHandler(async (req, res) => {
+    const mesaNumero = Number(req.params.mesaNumero);
+    if (!Number.isInteger(mesaNumero) || mesaNumero < 1) throw new AppError('Número de mesa inválido.');
+    res.json(await liberarPedidosMesa(mesaNumero, req.user));
+  }),
   listByMesa: asyncHandler(async (req, res) => {
     res.json(await listarPedidosCliente(req.params.mesaToken, req.query));
   }),

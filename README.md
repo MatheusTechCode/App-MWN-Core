@@ -101,6 +101,7 @@ Exemplo: se o Vite mostrar `Network: http://192.168.1.102:5173/`, use `http://19
 - Garçom move pedidos de `Pronto` para `Entregue`.
 - Garçom ou admin visualiza comandas abertas e registra pagamento, encerrando a comanda.
 - Em uma mesma mesa, cada cliente abre uma comanda identificada pelo próprio nome; pedidos e pagamentos ficam separados por comanda.
+- O cliente pode alternar entre as comandas criadas neste dispositivo; a cozinha acompanha os pedidos por mesa, sem exibir os nomes, e o garçom vê o nome de cada comanda e libera os pedidos da mesa juntos quando todos estiverem prontos.
 - O cliente pode solicitar o garçom ou gerar um QR Pix online pelo Mercado Pago; o pagamento só é confirmado após validação do webhook e consulta do status ao provedor.
 - Admin e garçom acompanham pedidos e pagamentos por comanda, registram recebimentos parciais e fecham a conta quando o saldo chega a zero.
 - Admin pode redefinir senha de usuários operacionais pela tela de operação.

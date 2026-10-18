@@ -19,6 +19,7 @@ export function KitchenOperationsPage({
   onOrderStatus,
   onStationStatus,
   onEditOrder,
+  onDeliverMesa,
 }) {
   if (!panel) {
     return (
@@ -41,6 +42,7 @@ export function KitchenOperationsPage({
       onOrderStatus={onOrderStatus}
       onStationStatus={onStationStatus}
       onEditOrder={onEditOrder}
+      onDeliverMesa={onDeliverMesa}
     />
   );
 }
@@ -55,6 +57,7 @@ function KitchenOperationsPageContent({
   onOrderStatus,
   onStationStatus,
   onEditOrder,
+  onDeliverMesa,
 }) {
   const [statusFilter, setStatusFilter] = React.useState('todos');
   const [now, setNow] = React.useState(() => Date.now());
@@ -150,7 +153,6 @@ function KitchenOperationsPageContent({
                   onOrderStatus={onOrderStatus}
                   onStationStatus={onStationStatus}
                   stationView={canShowStations}
-                  allowOrderDeliveryAction
                 />
               ))}
             </div>
@@ -229,7 +231,7 @@ function KitchenOperationsPageContent({
                 <header>
                   <div>
                     <strong>Mesa {mesa.mesaNumero}</strong>
-                    <span>{mesa.nomeCliente}</span>
+                  {user?.perfil !== 'cozinha' ? <span>{mesa.nomeCliente}</span> : null}
                   </div>
                   <span className={`status ${mesa.prontaParaRetirada ? 'pronto' : 'na-fila'}`}>
                     {mesa.prontaParaRetirada ? 'Pedido pronto para liberação' : `${mesa.itensProntos} item(ns) prontos`}
@@ -246,11 +248,18 @@ function KitchenOperationsPageContent({
                 <div className="kitchen-mesa-items">
                   {mesa.pedidos.flatMap((pedido) => pedido.itens.map((item) => (
                     <div key={item.id} className="kitchen-inline-item">
-                      <span>Pedido #{pedido.id} · {item.quantidade}x {item.nome}</span>
+                      <span>
+                        Pedido #{pedido.id}{user?.perfil !== 'cozinha' ? ` · ${pedido.nomeCliente}` : ''} · {item.quantidade}x {item.nome}
+                      </span>
                       <strong className={`status ${toStatusClass(item.status)}`}>{item.status}</strong>
                     </div>
                   )))}
                 </div>
+                {['admin', 'garcom'].includes(user?.perfil) ? (
+                  <button type="button" disabled={!mesa.prontaParaRetirada} onClick={() => onDeliverMesa(mesa)}>
+                    {mesa.prontaParaRetirada ? `Liberar todos os pedidos (${mesa.pedidos.length})` : 'Aguardando todos os pedidos ficarem prontos'}
+                  </button>
+                ) : null}
               </article>
             ))}
           </div>
@@ -295,7 +304,7 @@ function KitchenOrderCard({ pedido, itens, now, user, onEditOrder, onOrderStatus
       <header>
         <div>
           <strong>Mesa {pedido.mesa_numero} · Pedido #{pedido.id}</strong>
-          <span>{pedido.nome_cliente}</span>
+          {perfil !== 'cozinha' ? <span>{pedido.nome_cliente}</span> : null}
           <div className="kitchen-order-chips">
             {summary.map((chip) => (
               <span className={`kitchen-chip ${chip.tone}`} key={`${pedido.id}-${chip.label}`}>

@@ -6,6 +6,7 @@ import { montarPainelCozinha, ordenarStatus } from './pedido.inteligencia.js';
 import {
   createPedido,
   deletePedido,
+  deliverMesaOrders as deliverMesaOrdersRepository,
   findItemPedidoById,
   findPedidoById,
   findPedidoContextById,
@@ -60,6 +61,10 @@ export async function listarPedidosCliente(mesaToken, identidade) {
 
 export async function listarPedidosParaOperacao() {
   return listPedidosOperacaoDetalhada();
+}
+
+export async function liberarPedidosMesa(mesaNumero, usuario) {
+  return deliverMesaOrdersRepository(mesaNumero, usuario.perfil);
 }
 
 export async function listarPainelPedidosOperacao(usuario) {

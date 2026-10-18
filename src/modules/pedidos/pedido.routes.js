@@ -5,6 +5,12 @@ import { pedidoController } from './pedido.smart.controller.js';
 export const pedidoRoutes = Router();
 
 pedidoRoutes.get('/mesa/:mesaToken', pedidoController.listByMesa);
+pedidoRoutes.post(
+  '/mesa/:mesaNumero/entregar',
+  requireAuth,
+  requireRole('admin', 'garcom'),
+  pedidoController.deliverTable,
+);
 pedidoRoutes.get(
   '/operacao',
   requireAuth,

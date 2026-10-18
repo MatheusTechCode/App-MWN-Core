@@ -191,6 +191,7 @@ function construirVisaoConsolidada(pedidos) {
     };
     current.pedidos.push({
       id: pedido.id,
+      nomeCliente: pedido.nome_cliente,
       status: pedido.status,
       urgente: pedido.urgente,
       alertaPreparo: pedido.alertaPreparo,
@@ -211,7 +212,7 @@ function construirVisaoConsolidada(pedidos) {
   return Array.from(map.values())
     .map((mesa) => {
       const itensProntos = mesa.itens.filter((item) => item.status === 'Pronto');
-      const pedidoPronto = mesa.pedidos.some((pedido) => pedido.status === 'Pronto');
+      const pedidoPronto = mesa.pedidos.length > 0 && mesa.pedidos.every((pedido) => pedido.status === 'Pronto');
 
       return {
         mesaNumero: mesa.mesaNumero,

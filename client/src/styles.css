@@ -3075,6 +3075,27 @@ button.danger-button:hover {
   font-size: 0.9rem;
 }
 
+.comanda-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.comanda-tabs button {
+  padding: 9px 14px;
+  border: 1px solid var(--border, #dbe2ea);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: inherit;
+}
+
+.comanda-tabs button.active {
+  border-color: var(--primary, #2563eb);
+  background: var(--primary, #2563eb);
+  color: #fff;
+}
+
 .pix-email-field input,
 .pix-payment-box textarea {
   width: 100%;

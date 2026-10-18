@@ -97,38 +97,54 @@ export function App() {
   }
 
   async function loadCliente() {
-    let comandaId = localStorage.getItem(`comandax_comanda_${mesaToken}`);
-    let codigoCliente = comandaId ? localStorage.getItem(`comandax_codigo_${comandaId}`) : null;
-    if (!codigoCliente) {
-      const savedCodes = Object.keys(localStorage).filter((key) => key.startsWith('comandax_codigo_'));
-      const previousCodeKey = savedCodes.at(-1);
-      if (previousCodeKey) {
-        comandaId = previousCodeKey.slice('comandax_codigo_'.length);
-        codigoCliente = localStorage.getItem(previousCodeKey);
-      }
+    const commandIdsKey = `comandax_comandas_${mesaToken}`;
+    let commandIds = [];
+    try {
+      commandIds = JSON.parse(localStorage.getItem(commandIdsKey) || '[]').map(String);
+    } catch {
+      commandIds = [];
     }
-    const identidade = comandaId && codigoCliente
-      ? `?comandaId=${encodeURIComponent(comandaId)}&codigoCliente=${encodeURIComponent(codigoCliente)}`
-      : codigoCliente ? `?codigoCliente=${encodeURIComponent(codigoCliente)}` : '';
-    const [mesaData, cardapioData, comandasData, pedidosData] = await Promise.all([
+    const currentId = localStorage.getItem(`comandax_comanda_${mesaToken}`);
+    if (currentId && !commandIds.includes(String(currentId))) commandIds.push(String(currentId));
+    if (commandIds.length === 0) {
+      const previousCodeKey = Object.keys(localStorage)
+        .filter((key) => key.startsWith('comandax_codigo_'))
+        .at(-1);
+      if (previousCodeKey) commandIds.push(previousCodeKey.slice('comandax_codigo_'.length));
+    }
+    commandIds = commandIds.filter((id) => localStorage.getItem(`comandax_codigo_${id}`));
+    const [mesaData, cardapioData, commandData] = await Promise.all([
       api(`/mesas/qr/${mesaToken}`),
       api('/cardapios'),
-      api(`/comandas/mesa/${mesaToken}${identidade}`),
-      api(`/pedidos/mesa/${mesaToken}${identidade}`),
+      Promise.all(commandIds.map(async (id) => {
+        const codigoCliente = localStorage.getItem(`comandax_codigo_${id}`);
+        const identidade = `?comandaId=${encodeURIComponent(id)}&codigoCliente=${encodeURIComponent(codigoCliente)}`;
+        const [comandaResult, pedidoResult] = await Promise.all([
+          api(`/comandas/mesa/${mesaToken}${identidade}`),
+          api(`/pedidos/mesa/${mesaToken}${identidade}`),
+        ]);
+        return { comandas: asArray(comandaResult), pedidos: asArray(pedidoResult) };
+      })),
     ]);
 
     setMesa(mesaData);
     const listaCardapio = asArray(cardapioData);
-    const listaComandas = asArray(comandasData);
-    const listaPedidos = asArray(pedidosData);
+    const listaComandas = commandData.flatMap((result) => result.comandas);
+    const listaPedidos = commandData.flatMap((result) => result.pedidos);
 
     setCardapio(listaCardapio);
     setComandas(listaComandas);
     setPedidos(listaPedidos);
-    if (listaComandas[0]) {
-      localStorage.setItem(`comandax_comanda_${mesaToken}`, String(listaComandas[0].id));
+    if (listaComandas.length > 0) {
+      const availableIds = new Set(listaComandas.map((comanda) => String(comanda.id)));
+      const preferredId = [currentId, selectedComanda, listaComandas[0].id]
+        .map(String)
+        .find((id) => availableIds.has(id));
+      localStorage.setItem(`comandax_comanda_${mesaToken}`, preferredId);
+      setSelectedComanda(preferredId);
+    } else {
+      setSelectedComanda(null);
     }
-    setSelectedComanda(listaComandas[0]?.id || null);
   }
 
   async function loadOperacao() {
@@ -276,6 +292,18 @@ export function App() {
 
     return Array.from(items.values());
   }, [pedidos, selectedComanda]);
+  const pedidosComandaSelecionada = useMemo(
+    () => pedidos.filter((pedido) => Number(pedido.comanda_id) === Number(selectedComanda)),
+    [pedidos, selectedComanda],
+  );
+
+  function selecionarComanda(id) {
+    setSelectedComanda(id);
+    localStorage.setItem(`comandax_comanda_${mesaToken}`, String(id));
+    setCart([]);
+    setShowMobileCart(false);
+    setClientScreen('comanda');
+  }
 
   function addToCart(item, quantity = 1, observation = '') {
     const normalizedObservation = observation.trim();
@@ -353,6 +381,15 @@ export function App() {
     });
     localStorage.setItem(`comandax_comanda_${mesaToken}`, String(nova.id));
     localStorage.setItem(`comandax_codigo_${nova.id}`, nova.codigo_cliente);
+    const commandIdsKey = `comandax_comandas_${mesaToken}`;
+    let commandIds = [];
+    try {
+      commandIds = JSON.parse(localStorage.getItem(commandIdsKey) || '[]').map(String);
+    } catch {
+      commandIds = [];
+    }
+    if (!commandIds.includes(String(nova.id))) commandIds.push(String(nova.id));
+    localStorage.setItem(commandIdsKey, JSON.stringify(commandIds));
     setNomeCliente('');
     setShowNewComanda(false);
     setSelectedComanda(nova.id);
@@ -500,16 +537,8 @@ export function App() {
   }
 
   async function deliverMesaOrders(mesa) {
-    const prontos = mesa.pedidos.filter((pedido) => pedido.status === 'Pronto');
-
-    for (const pedido of prontos) {
-      await api(`/pedidos/${pedido.id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'Entregue' }),
-      });
-    }
-
-    setMessage(`Pedido(s) pronto(s) da mesa ${mesa.mesaNumero} liberado(s).`);
+    await api(`/pedidos/mesa/${mesa.mesaNumero}/entregar`, { method: 'POST' });
+    setMessage(`Todos os pedidos prontos da mesa ${mesa.mesaNumero} foram liberados para entrega.`);
     await loadOperacao();
   }
 
@@ -978,6 +1007,22 @@ export function App() {
                   </button>
                 </header>
 
+                {comandas.length > 1 ? (
+                  <nav className="comanda-tabs" aria-label="Selecionar comanda desta mesa">
+                    {comandas.map((comanda) => (
+                      <button
+                        key={comanda.id}
+                        type="button"
+                        className={Number(selectedComanda) === Number(comanda.id) ? 'active' : ''}
+                        aria-pressed={Number(selectedComanda) === Number(comanda.id)}
+                        onClick={() => selecionarComanda(comanda.id)}
+                      >
+                        {comanda.nome_cliente}
+                      </button>
+                    ))}
+                  </nav>
+                ) : null}
+
                 {showNewComanda || comandas.length === 0 ? (
                   <form onSubmit={createComanda} className="comanda-create-form">
                     <label>
@@ -1349,15 +1394,15 @@ export function App() {
                 </button>
               </header>
 
-              {pedidos.length === 0 ? (
+              {pedidosComandaSelecionada.length === 0 ? (
                 <div className="orders-empty">
                   <ClipboardList size={30} />
-                  <p>Nenhum pedido enviado nesta mesa.</p>
+                  <p>Nenhum pedido enviado nesta comanda.</p>
                 </div>
               ) : null}
 
               <div className="client-orders-list">
-                {pedidos.map((pedido) => (
+                {pedidosComandaSelecionada.map((pedido) => (
                   <ClientOrderStatus
                     key={pedido.id}
                     pedido={pedido}

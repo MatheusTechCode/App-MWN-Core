@@ -1,4 +1,4 @@
-import { pool, query } from '../../database/pool.js';
+import { dbClient, pool, query } from '../../database/pool.js';
 import { AppError } from '../../utils/AppError.js';
 import { calcularStatusPedidoPorItens } from './pedido.inteligencia.js';
 
@@ -102,6 +102,13 @@ export async function createPedido({ comandaId, itens, observacao, criadoPor }) 
   try {
     await client.query('begin');
 
+    await client.query(
+      `select m.id
+       from mesas m join comandas c on c.mesa_id = m.id
+       where c.id = $1${dbClient === 'postgres' ? ' for update of m' : ''}`,
+      [comandaId],
+    );
+
     const pedidoResult = await client.query(
       `insert into pedidos (comanda_id, observacao, criado_por, status, urgente)
        values ($1, $2, $3, 'Na fila', false)
@@ -143,6 +150,43 @@ export async function createPedido({ comandaId, itens, observacao, criadoPor }) 
 
     await client.query('commit');
     return pedido;
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deliverMesaOrders(mesaNumero, alteradoPor) {
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const mesa = await client.query(
+      `select id from mesas where numero = $1${dbClient === 'postgres' ? ' for update' : ''}`,
+      [mesaNumero],
+    );
+    if (!mesa.rows[0]) throw new AppError('Mesa não encontrada.', 404);
+
+    const result = await client.query(
+      `select p.id, p.status
+       from pedidos p join comandas c on c.id = p.comanda_id
+       where c.mesa_id = $1 and c.status = 'aberta' and p.status <> 'Entregue'
+       order by p.id${dbClient === 'postgres' ? ' for update of p, c' : ''}`,
+      [mesa.rows[0].id],
+    );
+    if (result.rows.length === 0) throw new AppError('Não há pedidos ativos para liberar nesta mesa.');
+    if (result.rows.some((pedido) => pedido.status !== 'Pronto')) {
+      throw new AppError('Aguarde todos os pedidos desta mesa ficarem prontos para liberá-los juntos.');
+    }
+
+    for (const pedido of result.rows) {
+      await applyBulkStatusToPedido(client, pedido.id, 'Entregue');
+      await syncPedidoState(client, pedido.id, alteradoPor);
+    }
+
+    await client.query('commit');
+    return { mesaNumero: Number(mesaNumero), pedidosLiberados: result.rows.length };
   } catch (error) {
     await client.query('rollback');
     throw error;
