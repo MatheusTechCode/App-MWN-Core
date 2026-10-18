@@ -20,6 +20,46 @@ export async function findPedidoContextById(id) {
   return result.rows[0];
 }
 
+export async function findUltimoPeridoNaFilaPorComanda(comandaId) {
+  const result = await query(
+    `select p.id, p.comanda_id, p.status, p.observacao, p.criado_por, p.criado_em, p.atualizado_em
+     from pedidos p
+     where p.comanda_id = $1 and p.status = 'Na fila'
+     order by p.criado_em desc
+     limit 1`,
+    [comandaId],
+  );
+
+  if (!result.rows.length) return null;
+
+  const pedidoRow = result.rows[0];
+
+  // Buscar itens desse pedido
+  const itensResult = await query(
+    `select ip.id, ip.item_cardapio_id, ic.nome, ip.quantidade, ip.preco_unitario
+     from itens_pedido ip
+     join itens_cardapio ic on ic.id = ip.item_cardapio_id
+     where ip.pedido_id = $1`,
+    [pedidoRow.id],
+  );
+
+  return {
+    id: pedidoRow.id,
+    comanda_id: pedidoRow.comanda_id,
+    status: pedidoRow.status,
+    observacao: pedidoRow.observacao,
+    criado_por: pedidoRow.criado_por,
+    criado_em: pedidoRow.criado_em,
+    atualizado_em: pedidoRow.atualizado_em,
+    itens: itensResult.rows.map((row) => ({
+      itemCardapioId: row.item_cardapio_id,
+      nome: row.nome,
+      quantidade: row.quantidade,
+      precoUnitario: row.preco_unitario,
+    })),
+  };
+}
+
 export async function listPedidosByMesaToken(mesaToken) {
   const result = await query(
     `select p.id, p.comanda_id, p.status, p.observacao, p.criado_por, p.criado_em, p.atualizado_em,

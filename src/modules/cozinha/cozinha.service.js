@@ -25,8 +25,10 @@ export async function obterConfiguracaoCozinha() {
 export async function salvarConfiguracaoCozinha(body) {
   const saved = await updateCozinhaConfiguracao({
     modoOperacao: body.modoOperacao,
+    modoProducao: body.modoProducao || 'por_pedido',
     agruparEntregaMesa: Boolean(body.agruparEntregaMesa),
     agruparProducaoSemelhantes: Boolean(body.agruparProducaoSemelhantes),
+    agruparPedidosFila: Boolean(body.agruparPedidosFila),
     toleranciaMinutos: Number(body.toleranciaMinutos),
     alertaFilaMinutos: Number(body.alertaFilaMinutos),
     perfisVisaoConsolidada: normalizarPerfis(body.perfisVisaoConsolidada).join(','),
@@ -74,8 +76,10 @@ export async function excluirEstacaoCozinha(id) {
 export function normalizarConfiguracao(configuracao) {
   const base = configuracao || {
     modo_operacao: 'simples',
+    modo_producao: 'por_pedido',
     agrupar_entrega_mesa: true,
     agrupar_producao_semelhantes: true,
+    agrupar_pedidos_fila: true,
     tolerancia_minutos: 3,
     alerta_fila_minutos: 10,
     perfis_visao_consolidada: 'garcom,cozinha',
@@ -83,8 +87,10 @@ export function normalizarConfiguracao(configuracao) {
 
   return {
     modoOperacao: base.modo_operacao || 'simples',
+    modoProducao: base.modo_producao || 'por_pedido',
     agruparEntregaMesa: Boolean(base.agrupar_entrega_mesa),
     agruparProducaoSemelhantes: Boolean(base.agrupar_producao_semelhantes),
+    agruparPedidosFila: base.agrupar_pedidos_fila !== 0 && base.agrupar_pedidos_fila !== false,
     toleranciaMinutos: Number(base.tolerancia_minutos ?? 3),
     alertaFilaMinutos: Number(base.alerta_fila_minutos ?? 10),
     perfisVisaoConsolidada: normalizarPerfis(base.perfis_visao_consolidada),

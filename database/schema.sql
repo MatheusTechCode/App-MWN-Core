@@ -61,8 +61,10 @@ alter table itens_cardapio
 create table if not exists cozinha_configuracoes (
   id bigserial primary key,
   modo_operacao varchar(20) not null default 'simples' check (modo_operacao in ('simples', 'avancado')),
+  modo_producao varchar(20) not null default 'por_pedido' check (modo_producao in ('por_pedido', 'por_lote')),
   agrupar_entrega_mesa boolean not null default true,
   agrupar_producao_semelhantes boolean not null default true,
+  agrupar_pedidos_fila boolean not null default true,
   tolerancia_minutos integer not null default 3 check (tolerancia_minutos >= 0),
   alerta_fila_minutos integer not null default 10 check (alerta_fila_minutos > 0),
   perfis_visao_consolidada text not null default 'garcom',

@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import bcrypt from 'bcryptjs';
 import pg from 'pg';
-import { env } from '../config/env.js';
+import { env, projectRoot } from '../config/env.js';
 
 const { Pool } = pg;
 
@@ -45,8 +46,8 @@ function createSqlitePool(DatabaseSync) {
   fs.mkdirSync(path.dirname(env.sqlitePath), { recursive: true });
   const database = new DatabaseSync(env.sqlitePath);
   database.exec('PRAGMA foreign_keys = ON');
-  database.exec(fs.readFileSync('database/sqlite-schema.sql', 'utf8'));
-  database.exec(fs.readFileSync('database/sqlite-seed.sql', 'utf8'));
+  database.exec(fs.readFileSync(path.join(projectRoot, 'database/sqlite-schema.sql'), 'utf8'));
+  database.exec(fs.readFileSync(path.join(projectRoot, 'database/sqlite-seed.sql'), 'utf8'));
   ensureSqliteColumns(database, 'itens_cardapio', [
     { name: 'imagem', sql: 'alter table itens_cardapio add column imagem text' },
     { name: 'tempo_preparo_minutos', sql: 'alter table itens_cardapio add column tempo_preparo_minutos integer not null default 0' },
@@ -111,15 +112,29 @@ const databasePool =
     ? createSqlitePool(sqliteModule.DatabaseSync)
     : createPostgresPool();
 
+if (env.databaseClient === 'sqlite') {
+  await ensureSqliteInitialUsers(databasePool);
+}
+
 if (env.databaseClient === 'postgres') {
-  await databasePool.query(fs.readFileSync('database/schema.sql', 'utf8'));
-  await databasePool.query(
-    `update itens_pedido ip
-     set status = p.status
-     from pedidos p
-     where p.id = ip.pedido_id
-       and (ip.status is null or ip.status = '')`,
-  );
+  const migrationPool = env.databaseUrlUnpooled
+    ? new Pool({ connectionString: env.databaseUrlUnpooled })
+    : databasePool;
+
+  try {
+    await migrationPool.query(fs.readFileSync(path.join(projectRoot, 'database/schema.sql'), 'utf8'));
+    await migrationPool.query(
+      `update itens_pedido ip
+       set status = p.status
+       from pedidos p
+       where p.id = ip.pedido_id
+         and (ip.status is null or ip.status = '')`,
+    );
+  } finally {
+    if (migrationPool !== databasePool) await migrationPool.end();
+  }
+
+  await ensurePostgresInitialUsers(databasePool);
 }
 
 export const pool = databasePool;
@@ -127,6 +142,79 @@ export const pool = databasePool;
 export async function query(text, params) {
   const result = await pool.query(text, params);
   return result;
+}
+
+async function ensureSqliteInitialUsers(database) {
+  const initialUsers = [
+    { nome: env.adminName, email: env.adminEmail, senha: env.adminInitialPassword, perfil: 'admin' },
+    { nome: env.kitchenName, email: env.kitchenEmail, senha: env.kitchenInitialPassword, perfil: 'cozinha' },
+    { nome: env.waiterName, email: env.waiterEmail, senha: env.waiterInitialPassword, perfil: 'garcom' },
+  ];
+
+  for (const user of initialUsers) {
+    if (!user.senha) {
+      continue;
+    }
+
+    const existingUser = await database.query('select id, perfil from usuarios where lower(email) = lower($1) limit 1', [
+      user.email,
+    ]);
+    if (existingUser.rows.length > 0) {
+      if (existingUser.rows[0].perfil !== user.perfil) {
+        console.warn(`O e-mail ${user.email} já pertence a um usuário com outro perfil; nenhum dado foi alterado.`);
+      }
+      continue;
+    }
+
+    const senhaHash = await bcrypt.hash(user.senha, 10);
+    await database.query(
+      `insert into usuarios (nome, email, senha_hash, perfil)
+       values ($1, $2, $3, $4)
+       on conflict (email) do nothing`,
+      [user.nome, user.email, senhaHash, user.perfil],
+    );
+
+    const createdUser = await database.query('select id from usuarios where lower(email) = lower($1) limit 1', [
+      user.email,
+    ]);
+    if (createdUser.rows.length > 0) {
+      console.info(`Usuário inicial (${user.perfil}) disponível para login em ${user.email}.`);
+    } else {
+      console.warn(`Não foi possível criar o usuário inicial ${user.email}.`);
+    }
+  }
+}
+
+async function ensurePostgresInitialUsers(database) {
+  const initialUsers = [
+    { nome: env.adminName, email: env.adminEmail, senha: env.adminInitialPassword, perfil: 'admin' },
+    { nome: env.kitchenName, email: env.kitchenEmail, senha: env.kitchenInitialPassword, perfil: 'cozinha' },
+    { nome: env.waiterName, email: env.waiterEmail, senha: env.waiterInitialPassword, perfil: 'garcom' },
+  ];
+
+  for (const user of initialUsers) {
+    if (!user.senha) continue;
+
+    const existingUser = await database.query(
+      'select id, perfil from usuarios where lower(email) = lower($1) limit 1',
+      [user.email],
+    );
+    if (existingUser.rows.length > 0) {
+      if (existingUser.rows[0].perfil !== user.perfil) {
+        console.warn(`O e-mail ${user.email} já pertence a outro perfil; nenhum dado foi alterado.`);
+      }
+      continue;
+    }
+
+    const senhaHash = await bcrypt.hash(user.senha, 10);
+    await database.query(
+      `insert into usuarios (nome, email, senha_hash, perfil)
+       values ($1, $2, $3, $4)
+       on conflict (email) do nothing`,
+      [user.nome, user.email, senhaHash, user.perfil],
+    );
+    console.info(`Usuário inicial (${user.perfil}) disponível para login em ${user.email}.`);
+  }
 }
 
 function ensureSqliteColumns(database, tableName, columns) {

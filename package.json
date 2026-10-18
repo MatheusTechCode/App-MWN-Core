@@ -17,6 +17,8 @@
     "generate:mesa-token": "node scripts/generate-table-token.js"
   },
   "dependencies": {
+    "@neon/config": "^1.9.2",
+    "@neon/env": "^1.6.3",
     "@vitejs/plugin-react": "^5.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

@@ -296,9 +296,20 @@ export function KitchenConfigPage({
         <header className="kitchen-panel-header">
           <div>
             <h2>Configuração da cozinha</h2>
-            <p className="muted">Defina modo, alertas, tolerância e quem enxerga o pedido total por mesa.</p>
+            <p className="muted">Defina modo, produção, alertas, tolerância e quem enxerga o pedido total por mesa.</p>
           </div>
         </header>
+
+        <div className="kitchen-config-info">
+          <div className="info-box">
+            <strong>Por Pedido (Padrão)</strong>
+            <p>Cada pedido é preparado individualmente do começo ao fim. Ideal para pequenos estabelecimentos.</p>
+          </div>
+          <div className="info-box">
+            <strong>Por Lote (Industrial)</strong>
+            <p>Chapa faz 15 hambúrgueres, fritadeira faz 10 batatas, depois montagem separa por mesa. Ideal para cozinhas grandes.</p>
+          </div>
+        </div>
 
         <div className="kitchen-config-grid">
           <label>
@@ -309,6 +320,16 @@ export function KitchenConfigPage({
             >
               <option value="simples">Simples</option>
               <option value="avancado">Avançado</option>
+            </select>
+          </label>
+          <label>
+            Modo de produção
+            <select
+              value={cozinhaForm.modoProducao}
+              onChange={(event) => setCozinhaForm({ ...cozinhaForm, modoProducao: event.target.value })}
+            >
+              <option value="por_pedido">Por Pedido (Padrão)</option>
+              <option value="por_lote">Por Lote (Cozinha Industrial)</option>
             </select>
           </label>
           <label>
@@ -332,14 +353,6 @@ export function KitchenConfigPage({
         </div>
 
         <div className="kitchen-config-grid">
-          <label className="check-row">
-            <input
-              checked={cozinhaForm.agruparEntregaMesa}
-              type="checkbox"
-              onChange={(event) => setCozinhaForm({ ...cozinhaForm, agruparEntregaMesa: event.target.checked })}
-            />
-            Liberar pedidos da mesma mesa juntos
-          </label>
           <label className="check-row">
             <input
               checked={cozinhaForm.agruparProducaoSemelhantes}

@@ -1,4 +1,8 @@
 node_modules/
 dist/
 .env
+database/*.sqlite
+database/*.sqlite-*
+database/backup-*.sql
 npm-debug.log*
+.neon

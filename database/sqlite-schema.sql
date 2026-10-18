@@ -52,8 +52,10 @@ create table if not exists itens_cardapio (
 create table if not exists cozinha_configuracoes (
   id integer primary key autoincrement,
   modo_operacao text not null default 'simples' check (modo_operacao in ('simples', 'avancado')),
+  modo_producao text not null default 'por_pedido' check (modo_producao in ('por_pedido', 'por_lote')),
   agrupar_entrega_mesa integer not null default 1,
   agrupar_producao_semelhantes integer not null default 1,
+  agrupar_pedidos_fila integer not null default 1,
   tolerancia_minutos integer not null default 3 check (tolerancia_minutos >= 0),
   alerta_fila_minutos integer not null default 10 check (alerta_fila_minutos > 0),
   perfis_visao_consolidada text not null default 'garcom',
@@ -141,9 +143,10 @@ insert into cozinha_configuracoes (
   modo_operacao,
   agrupar_entrega_mesa,
   agrupar_producao_semelhantes,
+  agrupar_pedidos_fila,
   tolerancia_minutos,
   alerta_fila_minutos,
   perfis_visao_consolidada
 )
-select 'simples', 1, 1, 3, 10, 'garcom'
+select 'simples', 1, 1, 1, 3, 10, 'garcom'
 where not exists (select 1 from cozinha_configuracoes);

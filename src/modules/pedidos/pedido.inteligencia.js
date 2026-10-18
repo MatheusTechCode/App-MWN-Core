@@ -74,7 +74,7 @@ export function montarPainelCozinha(pedidos, configuracaoBruta, usuario) {
     .sort((a, b) => new Date(b.atualizado_em).getTime() - new Date(a.atualizado_em).getTime())
     .slice(0, 30);
   const estacoes = construirEstacoes(ativos, configuracao);
-  const mesas = construirVisaoConsolidada(ativos, configuracao);
+  const mesas = construirVisaoConsolidada(ativos);
 
   return {
     configuracao,
@@ -176,7 +176,7 @@ function construirEstacoes(pedidos, configuracao) {
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
-function construirVisaoConsolidada(pedidos, configuracao) {
+function construirVisaoConsolidada(pedidos) {
   const map = new Map();
 
   for (const pedido of pedidos) {
@@ -210,9 +210,8 @@ function construirVisaoConsolidada(pedidos, configuracao) {
 
   return Array.from(map.values())
     .map((mesa) => {
-      const itensPendentes = mesa.itens.filter((item) => item.status !== 'Entregue');
-      const itensProntos = itensPendentes.filter((item) => item.status === 'Pronto');
-      const tudoPronto = itensPendentes.length > 0 && itensPendentes.every((item) => ['Pronto', 'Entregue'].includes(item.status));
+      const itensProntos = mesa.itens.filter((item) => item.status === 'Pronto');
+      const pedidoPronto = mesa.pedidos.some((pedido) => pedido.status === 'Pronto');
 
       return {
         mesaNumero: mesa.mesaNumero,
@@ -222,7 +221,7 @@ function construirVisaoConsolidada(pedidos, configuracao) {
         urgente: mesa.pedidos.some((pedido) => pedido.urgente),
         alertaFila: mesa.pedidos.some((pedido) => pedido.alertaFila),
         alertaPreparo: mesa.pedidos.some((pedido) => pedido.alertaPreparo),
-        prontaParaRetirada: configuracao.agruparEntregaMesa ? tudoPronto : itensProntos.length > 0,
+        prontaParaRetirada: pedidoPronto,
         itensProntos: itensProntos.length,
         estimativaEntrega: mesa.estimativas.length > 0
           ? new Date(Math.max(...mesa.estimativas)).toISOString()

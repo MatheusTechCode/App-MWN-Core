@@ -75,18 +75,18 @@ export async function criarPedido({ comandaId, mesaToken, itens, observacao, cri
   const comanda = await findComandaById(comandaId);
 
   if (!comanda || comanda.status !== 'aberta') {
-    throw new AppError('Comanda aberta não encontrada.', 404);
+    throw new AppError('Comanda aberta n\u00e3o encontrada.', 404);
   }
 
   const mesa = await obterMesaPorToken(mesaToken);
 
   if (Number(comanda.mesa_id) !== Number(mesa.id)) {
-    throw new AppError('Comanda não pertence à mesa informada.', 403);
+    throw new AppError('Comanda n\u00e3o pertence \u00e0 mesa informada.', 403);
   }
 
+  // Each customer submission stays a separate order on the same tab.
   return createPedido({ comandaId, itens, observacao, criadoPor });
 }
-
 export async function criarPedidoOperacao({ comandaId, itens, observacao, usuario }) {
   const comanda = await findComandaById(comandaId);
 

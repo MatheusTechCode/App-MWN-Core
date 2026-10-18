@@ -1,6 +1,7 @@
 import { AppError } from '../../utils/AppError.js';
 import { findComandaById } from '../comandas/comanda.repository.js';
 import { obterMesaPorToken } from '../mesas/mesa.service.js';
+import { obterConfiguracaoCozinha } from '../cozinha/cozinha.service.js';
 import {
   createPedido,
   deletePedido,
@@ -10,6 +11,7 @@ import {
   listPedidosOperacao,
   updatePedidoItens,
   updatePedidoStatus,
+  findUltimoPeridoNaFilaPorComanda,
 } from './pedido.repository.js';
 
 const transitions = {
@@ -52,6 +54,32 @@ export async function criarPedido({ comandaId, mesaToken, itens, observacao, cri
     throw new AppError('Comanda não pertence à mesa informada.', 403);
   }
 
+  // Verificar se agrupamento de pedidos está ativado
+  const config = await obterConfiguracaoCozinha();
+
+  console.log('=== CRIAR PEDIDO ===');
+  console.log('Config completa:', JSON.stringify(config));
+  console.log('agruparPedidosFila:', config.agruparPedidosFila, typeof config.agruparPedidosFila);
+  console.log('Comanda ID:', comandaId);
+
+  if (config.agruparPedidosFila) {
+    console.log('Buscando último pedido na fila...');
+    const ultimoPedido = await findUltimoPeridoNaFilaPorComanda(comandaId);
+    console.log('Último pedido encontrado:', JSON.stringify(ultimoPedido));
+
+    if (ultimoPedido && ultimoPedido.status === 'Na fila') {
+      console.log('✓ AGRUPANDO com pedido ID:', ultimoPedido.id);
+      // Adicionar itens ao pedido existente ao invés de criar um novo
+      return updatePedidoItens(ultimoPedido.id, [
+        ...(ultimoPedido.itens || []),
+        ...itens,
+      ], criadoPor);
+    }
+  } else {
+    console.log('✗ Agrupamento DESATIVADO');
+  }
+
+  console.log('Criando novo pedido...');
   return createPedido({ comandaId, itens, observacao, criadoPor });
 }
 

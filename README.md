@@ -42,6 +42,24 @@ npm run create:user -- "Garçom" garcom@comandax.com garcom123 garcom
 npm run dev
 ```
 
+No modo SQLite local, a primeira inicialização cria o administrador caso ainda não exista:
+
+- Login: `admin@comandax.com`
+- Senha inicial de desenvolvimento: `admin123`
+
+Na primeira inicialização SQLite, também são criados os acessos de demonstração, caso os e-mails ainda não existam:
+
+| Perfil | Login | Senha inicial de desenvolvimento |
+| --- | --- | --- |
+| Cozinha | `cozinha@comandax.com` | `cozinha123` |
+| Garçom | `garcom@comandax.com` | `garcom123` |
+
+Essas senhas são apenas para desenvolvimento local. Para produção, defina `ADMIN_*`, `KITCHEN_*` e `WAITER_*` no `.env` antes do primeiro início. Usuários existentes não têm a senha alterada nem são reativados automaticamente.
+
+Usuários existentes nunca têm a senha redefinida automaticamente. Em produção, configure as senhas e os e-mails iniciais dos três perfis antes da primeira inicialização; não use as senhas de demonstração.
+
+O caminho do banco SQLite é resolvido a partir da pasta do projeto, mesmo que o comando seja iniciado de outro diretório. Mantenha o arquivo indicado por `SQLITE_PATH` e faça backup antes de alterações; apagar esse arquivo remove os registros locais. O seed restaura somente dados de demonstração, não pedidos/comandas reais.
+
 Frontend cliente local: `http://localhost:5173/mwn_qr_a8F3kP7xQ2L9`
 Frontend operação local: `http://localhost:5173/admin`
 API local: `http://localhost:3001/api`
@@ -85,6 +103,7 @@ Exemplo: se o Vite mostrar `Network: http://192.168.1.102:5173/`, use `http://19
 - Admin pode redefinir senha de usuários operacionais pela tela de operação.
 - Admin pode recuperar a própria senha usando o código de recuperação configurado no `.env`.
 - Admin pode gerenciar garçons: criar, editar e excluir/desativar.
+- Ao criar um garçom na seção `Garçons` da tela de operação, o usuário e a senha são gravados no banco e podem ser usados imediatamente para entrar com o e-mail ou nome cadastrado.
 - Admin pode gerenciar mesas: visualizar, criar, editar e excluir/inativar.
 - Admin pode gerenciar cardápios e itens: criar, visualizar, editar, ativar/inativar, excluir e vincular itens a cardápios.
 - Garçom e cozinha podem visualizar cardápios e ativar/inativar cardápios conforme a operação.
@@ -127,6 +146,17 @@ scripts/
 
 Criar qr-code com o endereço de ip e com o codigo da mesa
 
+## Publicar gratuitamente no Render + Neon
+
+O `render.yaml` configura o ComandaX no plano gratuito do Render e usa PostgreSQL externo do Neon para manter os dados fora do disco temporário do serviço. É uma configuração para demonstração: o Render suspende o app após 15 minutos sem acesso e a primeira abertura pode levar cerca de um minuto. O Neon Free tem limites mensais de computação e armazenamento.
+
+1. No Neon, crie um projeto PostgreSQL gratuito. Abra **Connect**, escolha a branch e guarde as duas connection strings, com pooling (`DATABASE_URL`) e direta (`DATABASE_URL_UNPOOLED`); ambas incluem `sslmode=require`.
+2. Confirme que este repositório do GitHub contém o `render.yaml` na raiz do projeto `App-MWN-Core`. No painel do Render, use **New + → Blueprint** e conecte `MatheusTechCode/App-MWN-Core`.
+3. Ao criar o Blueprint, preencha os campos secretos solicitados: `DATABASE_URL` e `DATABASE_URL_UNPOOLED` com as URLs correspondentes do Neon, os e-mails e senhas fortes do admin, cozinha e garçom, e `ADMIN_RECOVERY_CODE`. Não compartilhe esses segredos nem os salve no GitHub.
+4. Aguarde o deploy. O schema e os três usuários iniciais são criados automaticamente na primeira inicialização. Usuários já existentes não têm a senha sobrescrita.
+5. Abra `https://SEU-SERVICO.onrender.com/api/health`; o resultado esperado é `status: ok`. A URL `https://SEU-SERVICO.onrender.com/admin` abre a operação e os QR Codes do cliente usam a mesma base, por exemplo `/mwn_qr_a8F3kP7xQ2L9`.
+
+O Render define a porta pública em `PORT`, que o servidor usa automaticamente. Para usar domínio próprio depois, adicione-o em **Settings → Custom Domains** e configure os DNS indicados; o domínio precisa ser registrado separadamente.
 ## Demo gratuita com SQLite
 
 Para serviços gratuitos que não permitem instalar PostgreSQL, o projeto pode rodar em modo SQLite usando o SQLite nativo do Node.js.
@@ -138,7 +168,15 @@ DATABASE_CLIENT=sqlite
 SQLITE_PATH=database/demo.sqlite
 JWT_SECRET=troque-este-segredo
 ADMIN_RECOVERY_CODE=um-codigo-forte-para-recuperacao
+ADMIN_EMAIL=admin@comandax.com
+ADMIN_INITIAL_PASSWORD=defina-uma-senha-forte
+KITCHEN_EMAIL=cozinha@comandax.com
+KITCHEN_INITIAL_PASSWORD=defina-uma-senha-forte
+WAITER_EMAIL=garcom@comandax.com
+WAITER_INITIAL_PASSWORD=defina-uma-senha-forte
 ```
+
+Em desenvolvimento, se não houver configurações de senha inicial, a primeira inicialização SQLite cria os acessos padrão de admin (`admin123`), cozinha (`cozinha123`) e garçom (`garcom123`). Em produção, configure explicitamente `ADMIN_INITIAL_PASSWORD`, `KITCHEN_INITIAL_PASSWORD` e `WAITER_INITIAL_PASSWORD` (e os respectivos e-mails) antes de iniciar. Cada usuário só é criado se o e-mail ainda não existir; senhas, perfis e contas desativadas existentes não são substituídos.
 
 O schema e os dados iniciais são aplicados automaticamente a partir de:
 
@@ -154,6 +192,8 @@ DATABASE_CLIENT=sqlite npm run create:user -- "Admin" admin@comandax.com admin12
 DATABASE_CLIENT=sqlite npm run create:user -- "Cozinha" cozinha@comandax.com cozinha123 cozinha
 DATABASE_CLIENT=sqlite npm run create:user -- "Garçom" garcom@comandax.com garcom123 garcom
 ```
+
+O admin também pode criar logins individuais para novos garçons na tela `/admin/garcons`. Informe nome, e-mail e senha inicial (mínimo de 6 caracteres) e clique em `Criar garçom`. O usuário fica salvo no mesmo banco SQLite/PostgreSQL e já pode entrar com o próprio e-mail ou nome e senha. Garçons adicionados por esse formulário são listados e administrados nessa mesma seção.
 
 Para rodar localmente nesse modo:
 

@@ -47,8 +47,10 @@ export function App() {
   const [cardapioForm, setCardapioForm] = useState({ id: null, nome: '', ativo: true });
   const [cozinhaForm, setCozinhaForm] = useState({
     modoOperacao: 'simples',
+    modoProducao: 'por_pedido',
     agruparEntregaMesa: true,
     agruparProducaoSemelhantes: true,
+    agruparPedidosFila: true,
     toleranciaMinutos: 3,
     alertaFilaMinutos: 10,
     perfisVisaoConsolidada: ['garcom'],
@@ -156,8 +158,10 @@ export function App() {
     setCozinhaConfig(cozinhaConfigData);
     setCozinhaForm({
       modoOperacao: cozinhaConfigData?.modoOperacao || 'simples',
+      modoProducao: cozinhaConfigData?.modoProducao || 'por_pedido',
       agruparEntregaMesa: cozinhaConfigData?.agruparEntregaMesa !== false,
       agruparProducaoSemelhantes: cozinhaConfigData?.agruparProducaoSemelhantes !== false,
+      agruparPedidosFila: cozinhaConfigData?.agruparPedidosFila !== false,
       toleranciaMinutos: cozinhaConfigData?.toleranciaMinutos ?? 3,
       alertaFilaMinutos: cozinhaConfigData?.alertaFilaMinutos ?? 10,
       perfisVisaoConsolidada: cozinhaConfigData?.perfisVisaoConsolidada || ['garcom'],
@@ -396,11 +400,13 @@ export function App() {
     await loadOperacao();
   }
 
-  async function changeItemStatus(item, status) {
-    await api(`/pedidos/itens/${item.id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
+  async function changeStationStatus(itens, status) {
+    for (const item of itens) {
+      await api(`/pedidos/itens/${item.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+    }
     await loadOperacao();
   }
 
@@ -482,7 +488,7 @@ export function App() {
       });
     }
 
-    setMessage(`Pedidos prontos da mesa ${mesa.mesaNumero} marcados como entregues.`);
+    setMessage(`Pedido(s) pronto(s) da mesa ${mesa.mesaNumero} liberado(s).`);
     await loadOperacao();
   }
 
@@ -520,8 +526,10 @@ export function App() {
       method: 'PUT',
       body: JSON.stringify({
         modoOperacao: cozinhaForm.modoOperacao,
+        modoProducao: cozinhaForm.modoProducao,
         agruparEntregaMesa: cozinhaForm.agruparEntregaMesa,
         agruparProducaoSemelhantes: cozinhaForm.agruparProducaoSemelhantes,
+        agruparPedidosFila: cozinhaForm.agruparPedidosFila,
         toleranciaMinutos: Number(cozinhaForm.toleranciaMinutos),
         alertaFilaMinutos: Number(cozinhaForm.alertaFilaMinutos),
         perfisVisaoConsolidada: cozinhaForm.perfisVisaoConsolidada,
@@ -1436,7 +1444,7 @@ export function App() {
                     onEnableNotifications={enableOrderNotifications}
                     onRefresh={loadOperacao}
                     onOrderStatus={changeStatus}
-                    onItemStatus={changeItemStatus}
+                    onStationStatus={changeStationStatus}
                     onDeliverMesa={deliverMesaOrders}
                     onEditOrder={setEditingOrder}
                   />

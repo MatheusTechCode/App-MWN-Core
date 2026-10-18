@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: comandax
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_CLIENT
+        value: postgres
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_NAME
+        value: Admin
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_INITIAL_PASSWORD
+        sync: false
+      - key: ADMIN_RECOVERY_CODE
+        sync: false
+      - key: KITCHEN_NAME
+        value: Cozinha
+      - key: KITCHEN_EMAIL
+        sync: false
+      - key: KITCHEN_INITIAL_PASSWORD
+        sync: false
+      - key: WAITER_NAME
+        value: Garcom
+      - key: WAITER_EMAIL
+        sync: false
+      - key: WAITER_INITIAL_PASSWORD
+        sync: false
+

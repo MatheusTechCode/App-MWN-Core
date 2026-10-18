@@ -2,13 +2,12 @@ import {
   AlertTriangle,
   Bell,
   BellRing,
-  CheckCircle2,
   Clock3,
   RefreshCcw,
 } from 'lucide-react';
 import React from 'react';
 
-const ORDER_STATUSES = ['Na fila', 'Em preparo', 'Pronto'];
+const ORDER_STATUSES = ['Na fila', 'Em preparo', 'Pronto', 'Entregue'];
 
 export function KitchenOperationsPage({
   panel,
@@ -18,7 +17,7 @@ export function KitchenOperationsPage({
   onEnableNotifications,
   onRefresh,
   onOrderStatus,
-  onDeliverMesa,
+  onStationStatus,
   onEditOrder,
 }) {
   if (!panel) {
@@ -40,7 +39,7 @@ export function KitchenOperationsPage({
       onEnableNotifications={onEnableNotifications}
       onRefresh={onRefresh}
       onOrderStatus={onOrderStatus}
-      onDeliverMesa={onDeliverMesa}
+      onStationStatus={onStationStatus}
       onEditOrder={onEditOrder}
     />
   );
@@ -54,15 +53,17 @@ function KitchenOperationsPageContent({
   onEnableNotifications,
   onRefresh,
   onOrderStatus,
-  onDeliverMesa,
+  onStationStatus,
   onEditOrder,
 }) {
   const [statusFilter, setStatusFilter] = React.useState('todos');
   const [now, setNow] = React.useState(() => Date.now());
   const groupedOrders = React.useMemo(() => groupOrdersByStatus(orders), [orders]);
   const visibleStatuses = statusFilter === 'todos' ? ORDER_STATUSES : [statusFilter];
+  const deliveredOrders = orders.filter((pedido) => pedido.status === 'Entregue').length;
   const boardLanes = visibleStatuses.map((status) => ({
     status,
+    label: status === 'Entregue' ? 'Liberados' : status,
     pedidos: groupedOrders[status] || [],
   }));
   const totalOrders = ORDER_STATUSES.reduce(
@@ -105,6 +106,7 @@ function KitchenOperationsPageContent({
           { value: 'Na fila', label: 'Na fila', count: panel.resumo.pedidosNaFila },
           { value: 'Em preparo', label: 'Em preparo', count: panel.resumo.pedidosEmPreparo },
           { value: 'Pronto', label: 'Prontos', count: panel.resumo.pedidosProntos },
+          { value: 'Entregue', label: 'Liberados', count: deliveredOrders },
         ].map((tab) => (
           <button
             key={tab.value}
@@ -130,7 +132,7 @@ function KitchenOperationsPageContent({
           <section className="admin-panel kitchen-lane" key={lane.status}>
             <header className="kitchen-lane-header">
               <div>
-                <h2>{lane.status}</h2>
+                <h2>{lane.label}</h2>
                 <p className="muted">{lane.pedidos.length} pedido(s)</p>
               </div>
             </header>
@@ -146,6 +148,9 @@ function KitchenOperationsPageContent({
                   user={user}
                   onEditOrder={onEditOrder}
                   onOrderStatus={onOrderStatus}
+                  onStationStatus={onStationStatus}
+                  stationView={canShowStations}
+                  allowOrderDeliveryAction
                 />
               ))}
             </div>
@@ -197,6 +202,9 @@ function KitchenOperationsPageContent({
                       user={user}
                       onEditOrder={onEditOrder}
                       onOrderStatus={onOrderStatus}
+                      onStationStatus={onStationStatus}
+                      stationView
+                      stationCard
                     />
                   ))}
                 </div>
@@ -224,7 +232,7 @@ function KitchenOperationsPageContent({
                     <span>{mesa.nomeCliente}</span>
                   </div>
                   <span className={`status ${mesa.prontaParaRetirada ? 'pronto' : 'na-fila'}`}>
-                    {mesa.prontaParaRetirada ? 'Pronta para retirada' : `${mesa.itensProntos} item(ns) prontos`}
+                    {mesa.prontaParaRetirada ? 'Pedido pronto para liberação' : `${mesa.itensProntos} item(ns) prontos`}
                   </span>
                 </header>
                 <div className="kitchen-mesa-meta">
@@ -236,20 +244,12 @@ function KitchenOperationsPageContent({
                   </span>
                 </div>
                 <div className="kitchen-mesa-items">
-                  {mesa.itens.map((item) => (
+                  {mesa.pedidos.flatMap((pedido) => pedido.itens.map((item) => (
                     <div key={item.id} className="kitchen-inline-item">
-                      <span>{item.quantidade}x {item.nome}</span>
+                      <span>Pedido #{pedido.id} · {item.quantidade}x {item.nome}</span>
+                      <strong className={`status ${toStatusClass(item.status)}`}>{item.status}</strong>
                     </div>
-                  ))}
-                </div>
-                <div className="kitchen-mesa-actions">
-                  <button
-                    type="button"
-                    disabled={!mesa.pedidos.some((pedido) => pedido.status === 'Pronto')}
-                    onClick={() => onDeliverMesa(mesa)}
-                  >
-                    <CheckCircle2 size={16} /> Entregar pedidos prontos
-                  </button>
+                  )))}
                 </div>
               </article>
             ))}
@@ -284,7 +284,7 @@ function KitchenOperationsPageContent({
   );
 }
 
-function KitchenOrderCard({ pedido, itens, now, user, onEditOrder, onOrderStatus }) {
+function KitchenOrderCard({ pedido, itens, now, user, onEditOrder, onOrderStatus, onStationStatus, stationView = false, stationCard = false, allowOrderDeliveryAction = false }) {
   const perfil = user?.perfil;
   const showPreparationTime = user?.perfil === 'cozinha';
   const summary = buildOrderSummary(itens);
@@ -337,6 +337,7 @@ function KitchenOrderCard({ pedido, itens, now, user, onEditOrder, onOrderStatus
             <div>
               <strong>{item.quantidade}x {item.nome}</strong>
               {item.observacao ? <small className="kitchen-item-note">Obs.: {item.observacao}</small> : null}
+              {stationCard ? <small>Status: {item.status}</small> : null}
             </div>
           </div>
         ))}
@@ -348,7 +349,17 @@ function KitchenOrderCard({ pedido, itens, now, user, onEditOrder, onOrderStatus
             Editar pedido
           </button>
         ) : null}
-        {primaryAction ? (
+        {stationCard && ['admin', 'cozinha'].includes(perfil) && itens.some((item) => item.status === 'Na fila') ? (
+          <button type="button" onClick={() => onStationStatus(itens.filter((item) => item.status === 'Na fila'), 'Em preparo')}>
+            Iniciar preparo da estação
+          </button>
+        ) : null}
+        {stationCard && ['admin', 'cozinha'].includes(perfil) && itens.some((item) => item.status === 'Em preparo') && itens.every((item) => ['Em preparo', 'Pronto', 'Entregue'].includes(item.status)) ? (
+          <button type="button" onClick={() => onStationStatus(itens.filter((item) => item.status === 'Em preparo'), 'Pronto')}>
+            Marcar estação pronta
+          </button>
+        ) : null}
+        {primaryAction && (pedido.status === 'Pronto' ? allowOrderDeliveryAction : !stationView) ? (
           <button type="button" onClick={() => onOrderStatus(pedido, primaryAction.nextStatus)}>
             {primaryAction.label}
           </button>
@@ -385,6 +396,10 @@ function buildOrderSummary(items) {
     { label: 'Itens', value: totals.items, tone: 'neutral' },
     { label: 'Unidades', value: totals.units, tone: totals.units > 0 ? 'queue' : 'muted' },
   ];
+}
+
+function toStatusClass(status) {
+  return String(status || '').toLowerCase().replaceAll(' ', '-');
 }
 
 function getOrderPrimaryAction(pedido, perfil) {

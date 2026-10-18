@@ -2,8 +2,8 @@ import { query } from '../../database/pool.js';
 
 export async function getCozinhaConfiguracao() {
   const result = await query(
-    `select id, modo_operacao, agrupar_entrega_mesa, agrupar_producao_semelhantes,
-       tolerancia_minutos, alerta_fila_minutos, perfis_visao_consolidada, criado_em, atualizado_em
+    `select id, modo_operacao, modo_producao, agrupar_entrega_mesa, agrupar_producao_semelhantes,
+       agrupar_pedidos_fila, tolerancia_minutos, alerta_fila_minutos, perfis_visao_consolidada, criado_em, atualizado_em
      from cozinha_configuracoes
      order by id
      limit 1`,
@@ -19,20 +19,24 @@ export async function updateCozinhaConfiguracao(configuracao) {
     const created = await query(
       `insert into cozinha_configuracoes (
          modo_operacao,
+         modo_producao,
          agrupar_entrega_mesa,
          agrupar_producao_semelhantes,
+         agrupar_pedidos_fila,
          tolerancia_minutos,
          alerta_fila_minutos,
          perfis_visao_consolidada,
          atualizado_em
        )
-       values ($1, $2, $3, $4, $5, $6, now())
-       returning id, modo_operacao, agrupar_entrega_mesa, agrupar_producao_semelhantes,
-         tolerancia_minutos, alerta_fila_minutos, perfis_visao_consolidada, criado_em, atualizado_em`,
+       values ($1, $2, $3, $4, $5, $6, $7, $8, now())
+       returning id, modo_operacao, modo_producao, agrupar_entrega_mesa, agrupar_producao_semelhantes,
+         agrupar_pedidos_fila, tolerancia_minutos, alerta_fila_minutos, perfis_visao_consolidada, criado_em, atualizado_em`,
       [
         configuracao.modoOperacao,
+        configuracao.modoProducao,
         configuracao.agruparEntregaMesa,
         configuracao.agruparProducaoSemelhantes,
+        configuracao.agruparPedidosFila,
         configuracao.toleranciaMinutos,
         configuracao.alertaFilaMinutos,
         configuracao.perfisVisaoConsolidada,
@@ -45,20 +49,24 @@ export async function updateCozinhaConfiguracao(configuracao) {
   const result = await query(
     `update cozinha_configuracoes
      set modo_operacao = $2,
-       agrupar_entrega_mesa = $3,
-       agrupar_producao_semelhantes = $4,
-       tolerancia_minutos = $5,
-       alerta_fila_minutos = $6,
-       perfis_visao_consolidada = $7,
+       modo_producao = $3,
+       agrupar_entrega_mesa = $4,
+       agrupar_producao_semelhantes = $5,
+       agrupar_pedidos_fila = $6,
+       tolerancia_minutos = $7,
+       alerta_fila_minutos = $8,
+       perfis_visao_consolidada = $9,
        atualizado_em = now()
      where id = $1
-     returning id, modo_operacao, agrupar_entrega_mesa, agrupar_producao_semelhantes,
-       tolerancia_minutos, alerta_fila_minutos, perfis_visao_consolidada, criado_em, atualizado_em`,
+     returning id, modo_operacao, modo_producao, agrupar_entrega_mesa, agrupar_producao_semelhantes,
+       agrupar_pedidos_fila, tolerancia_minutos, alerta_fila_minutos, perfis_visao_consolidada, criado_em, atualizado_em`,
     [
       current.id,
       configuracao.modoOperacao,
+      configuracao.modoProducao,
       configuracao.agruparEntregaMesa,
       configuracao.agruparProducaoSemelhantes,
+      configuracao.agruparPedidosFila,
       configuracao.toleranciaMinutos,
       configuracao.alertaFilaMinutos,
       configuracao.perfisVisaoConsolidada,
